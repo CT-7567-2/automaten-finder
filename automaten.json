@@ -1,6 +1,6 @@
 [
-  { "id": "1", "name": "Automat Hauptstraße",  "lat": 48.5011, "lng": 9.1275 },
-  { "id": "2", "name": "Automat am Bahnhof",   "lat": 52.5250, "lng": 13.4100 },
-  { "id": "3", "name": "Automat Kneipe Ecke",  "lat": 52.5150, "lng": 13.3950 },
+  { "id": "1", "name": "Automat Jettenburg",  "lat": 48.5011, "lng": 9.1275 },
+  { "id": "2", "name": "Automat Oferdingen",   "lat": 48.5491, "lng": 9.2076 },
+  { "id": "3", "name": "Automat Reicheneck",  "lat": 48.5394, "lng": 9.2328 },
   { "id": "4", "name": "Automat Späti Nord",   "lat": 52.5300, "lng": 13.4150 }
 ]
