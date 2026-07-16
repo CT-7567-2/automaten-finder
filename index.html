@@ -474,11 +474,20 @@
   // und in automaten.json bei GitHub einfügen (siehe Anleitung
   // im Export-Fenster der App).
   //
+  // Wichtig beim manuellen Bearbeiten von automaten.json:
+  // Jede "id" muss innerhalb der Datei einmalig sein (beliebiger
+  // Text, z.B. "1", "bahnhof" o.ä.) und sollte über die Zeit
+  // stabil bleiben – nicht für einen anderen Standort wiederver-
+  // wenden, sonst können alte "gelöscht"-Markierungen im Browser
+  // eines Freundes versehentlich den falschen (neuen) Automaten
+  // treffen.
+  //
   // Zusätzlich lokal hinzugefügte / gelöschte Standorte werden nur
   // im eigenen Browser gespeichert (localStorage), bis sie jemand
   // per Export in automaten.json übernimmt.
   // ============================================================
   let seedAutomaten = [];
+  let fileIds = new Set(); // IDs, die tatsächlich aus automaten.json stammen
 
   const STORAGE_CUSTOM = 'automatfinder_custom';
   const STORAGE_DELETED = 'automatfinder_deleted';
@@ -555,7 +564,7 @@
 
   function deleteAutomat(id) {
     if (!confirm('Diesen Automat wirklich löschen?')) return;
-    if (id.startsWith('seed-')) {
+    if (fileIds.has(id)) {
       const deleted = loadDeleted();
       if (!deleted.includes(id)) { deleted.push(id); saveDeleted(deleted); }
     } else {
@@ -571,6 +580,7 @@
       const res = await fetch('./automaten.json', { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       seedAutomaten = await res.json();
+      fileIds = new Set(seedAutomaten.map(a => a.id));
     } catch (err) {
       console.error('automaten.json konnte nicht geladen werden:', err);
       showError('automaten.json konnte nicht geladen werden. Läuft die Seite über GitHub Pages / einen Server (nicht als lokale Datei geöffnet)?');
