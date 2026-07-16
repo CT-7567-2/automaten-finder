@@ -20,6 +20,8 @@
     --text-dim: #8c949c;
     --danger: #e15554;
     --point: #7c9cff;
+    --shop: #3fc79a;
+    --shop-dim: #1f5c47;
   }
 
   * { box-sizing: border-box; }
@@ -134,6 +136,58 @@
   .mode-row {
     display: flex;
     gap: 8px;
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .legend-chip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 7px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .legend-chip .dot {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+  }
+
+  .legend-chip[data-type="automat"] .dot {
+    background: var(--amber);
+    border-radius: 2px 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .legend-chip[data-type="laden"] .dot {
+    background: var(--shop);
+    border-radius: 50%;
+  }
+
+  .legend-chip[data-type="automat"].active {
+    border-color: var(--amber);
+    color: var(--text);
+    background: rgba(242,169,0,0.08);
+  }
+  .legend-chip[data-type="laden"].active {
+    border-color: var(--shop);
+    color: var(--text);
+    background: rgba(63,199,154,0.08);
   }
 
   .mode-btn {
@@ -272,6 +326,26 @@
     background: #ffffff;
     border-color: var(--amber);
     animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  .laden-icon {
+    width: 20px;
+    height: 20px;
+    background: var(--shop);
+    border: 2px solid #14171a;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+
+  .laden-icon.nearest {
+    background: #ffffff;
+    border-color: var(--shop);
+    animation: pulse-shop 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-shop {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(63,199,154,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(63,199,154,0); }
   }
 
   @keyframes pulse {
@@ -418,6 +492,10 @@
 </div>
 
 <div class="panel">
+  <div class="legend-row">
+    <button class="legend-chip" data-type="automat" id="filterAutomat"><span class="dot"></span>Automaten</button>
+    <button class="legend-chip" data-type="laden" id="filterLaden"><span class="dot"></span>Läden</button>
+  </div>
   <div class="mode-row">
     <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
@@ -440,8 +518,12 @@
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
-    <div class="modal-title">Neuer Automat</div>
+    <div class="modal-title">Neuer Standort</div>
     <div class="modal-coords" id="modalCoords">–</div>
+    <div class="legend-row" id="modalTypeRow" style="margin-top:2px;">
+      <button class="legend-chip" data-type="automat" id="modalTypeAutomat"><span class="dot"></span>Automat</button>
+      <button class="legend-chip" data-type="laden" id="modalTypeLaden"><span class="dot"></span>Laden</button>
+    </div>
     <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
     <div class="modal-actions">
       <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
@@ -485,6 +567,10 @@
   // eines Freundes versehentlich den falschen (neuen) Automaten
   // treffen.
   //
+  // "type": "automat" oder "laden" – steuert Symbol/Farbe auf der
+  // Karte und die Filter-Legende. Fehlt das Feld, wird "automat"
+  // angenommen.
+  //
   // Zusätzlich lokal hinzugefügte / gelöschte Standorte werden nur
   // im eigenen Browser gespeichert (localStorage), bis sie jemand
   // per Export in automaten.json übernimmt.
@@ -513,8 +599,12 @@
   function getVisibleAutomaten() {
     const deleted = loadDeleted();
     const combined = [...seedAutomaten, ...loadCustom()];
-    return combined.filter(a => !deleted.includes(a.id));
+    return combined
+      .filter(a => !deleted.includes(a.id))
+      .map(a => ({ ...a, type: a.type === 'laden' ? 'laden' : 'automat' }));
   }
+
+  let activeTypes = new Set(['automat', 'laden']);
 
   // ============================================================
   // Karte initialisieren
@@ -539,15 +629,17 @@
   function renderMarkers() {
     markerLayer.clearLayers();
     markerRefs = {};
-    const list = getVisibleAutomaten();
+    const all = getVisibleAutomaten();
+    const list = all.filter(a => activeTypes.has(a.type));
     document.getElementById('countPill').textContent =
-      list.length + (list.length === 1 ? ' Standort' : ' Standorte');
+      all.length + (all.length === 1 ? ' Standort' : ' Standorte');
 
     list.forEach(a => {
-      const m = L.marker([a.lat, a.lng], { icon: makeDivIcon('automat-icon') });
+      const iconClass = a.type === 'laden' ? 'laden-icon' : 'automat-icon';
+      const m = L.marker([a.lat, a.lng], { icon: makeDivIcon(iconClass) });
       const popupEl = document.createElement('div');
       popupEl.innerHTML = `<b>${escapeHtml(a.name)}</b>
-        <div class="popup-coords">${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>`;
+        <div class="popup-coords">${a.type === 'laden' ? 'Laden' : 'Automat'} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>`;
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
@@ -696,8 +788,8 @@
   }
 
   function findNearestFrom(fromLat, fromLng, label) {
-    const list = getVisibleAutomaten();
-    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon')?.classList.remove('nearest'));
+    const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type));
+    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
 
     let nearest = null;
     let nearestDist = Infinity;
@@ -707,11 +799,11 @@
     });
 
     if (!nearest) {
-      showError('Keine Automaten vorhanden.');
+      showError('Keine passenden Standorte gefunden. Prüfe die Filter oben (Automaten/Läden).');
       return;
     }
 
-    markerRefs[nearest.id]?.getElement()?.querySelector('.automat-icon')?.classList.add('nearest');
+    markerRefs[nearest.id]?.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.add('nearest');
 
     const bounds = L.latLngBounds([fromLat, fromLng], [nearest.lat, nearest.lng]);
     map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
@@ -733,13 +825,24 @@
   const modalInput = document.getElementById('modalInput');
   const modalSave = document.getElementById('modalSave');
   const modalCancel = document.getElementById('modalCancel');
+  const modalTypeAutomat = document.getElementById('modalTypeAutomat');
+  const modalTypeLaden = document.getElementById('modalTypeLaden');
   let pendingCoords = null;
-  let pendingMarkerPreview = null;
+  let pendingType = 'automat';
+
+  function setPendingType(type) {
+    pendingType = type;
+    modalTypeAutomat.classList.toggle('active', type === 'automat');
+    modalTypeLaden.classList.toggle('active', type === 'laden');
+  }
+  modalTypeAutomat.addEventListener('click', () => setPendingType('automat'));
+  modalTypeLaden.addEventListener('click', () => setPendingType('laden'));
 
   function openAddModal(lat, lng) {
     pendingCoords = { lat, lng };
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
+    setPendingType('automat');
     modalOverlay.classList.add('visible');
     setTimeout(() => modalInput.focus(), 50);
   }
@@ -759,11 +862,12 @@
 
   modalSave.addEventListener('click', () => {
     if (!pendingCoords) return;
-    const name = modalInput.value.trim() || 'Neuer Automat';
+    const name = modalInput.value.trim() || (pendingType === 'laden' ? 'Neuer Laden' : 'Neuer Automat');
     const custom = loadCustom();
     custom.push({
       id: makeId(),
       name,
+      type: pendingType,
       lat: Math.round(pendingCoords.lat * 100000) / 100000,
       lng: Math.round(pendingCoords.lng * 100000) / 100000
     });
@@ -777,6 +881,29 @@
     if (e.key === 'Escape') closeAddModal();
   });
 
+  // ---- Legende oben im Panel: gleichzeitig Filter für Karte & Suche ----
+  const filterAutomat = document.getElementById('filterAutomat');
+  const filterLaden = document.getElementById('filterLaden');
+
+  function refreshFilterChips() {
+    filterAutomat.classList.toggle('active', activeTypes.has('automat'));
+    filterLaden.classList.toggle('active', activeTypes.has('laden'));
+  }
+  refreshFilterChips();
+
+  function toggleType(type) {
+    if (activeTypes.has(type)) {
+      if (activeTypes.size === 1) return; // mindestens ein Typ muss sichtbar bleiben
+      activeTypes.delete(type);
+    } else {
+      activeTypes.add(type);
+    }
+    refreshFilterChips();
+    renderMarkers();
+  }
+  filterAutomat.addEventListener('click', () => toggleType('automat'));
+  filterLaden.addEventListener('click', () => toggleType('laden'));
+
   // ---- "Liste exportieren" ----
   const exportBtn = document.getElementById('exportBtn');
   const exportOverlay = document.getElementById('exportOverlay');
@@ -785,7 +912,7 @@
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, lat, lng }) => ({ id, name, lat, lng }));
+    const list = getVisibleAutomaten().map(({ id, name, type, lat, lng }) => ({ id, name, type, lat, lng }));
     exportTextarea.value = JSON.stringify(list, null, 2);
     exportOverlay.classList.add('visible');
   });
