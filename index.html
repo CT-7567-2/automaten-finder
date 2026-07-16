@@ -19,6 +19,7 @@
     --text: #eceeef;
     --text-dim: #8c949c;
     --danger: #e15554;
+    --point: #7c9cff;
   }
 
   * { box-sizing: border-box; }
@@ -39,6 +40,8 @@
     z-index: 1;
     filter: saturate(0.35) brightness(0.85);
   }
+
+  #map.picking { cursor: crosshair; }
 
   /* --- Top bar --- */
   .topbar {
@@ -82,6 +85,38 @@
     border-radius: 20px;
   }
 
+  /* --- Hint bar (shown while picking a point on the map) --- */
+  .hint-bar {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: var(--point);
+    color: #0c1230;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 9px 9px 14px;
+    border-radius: 20px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    white-space: nowrap;
+  }
+  .hint-bar.visible { display: flex; }
+  .hint-bar button {
+    border: none;
+    background: rgba(12,18,48,0.15);
+    color: #0c1230;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  .hint-bar button:hover { background: rgba(12,18,48,0.28); }
+
   /* --- Bottom control panel --- */
   .panel {
     position: absolute;
@@ -96,28 +131,45 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   }
 
-  .locate-btn {
-    width: 100%;
+  .mode-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     background: var(--amber);
     color: #1a1400;
     border: none;
     font-family: 'Oswald', sans-serif;
     font-weight: 600;
-    font-size: 15px;
-    letter-spacing: 0.03em;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
-    padding: 13px;
+    padding: 11px 6px;
     border-radius: 9px;
     cursor: pointer;
     transition: transform 0.08s ease, background 0.15s ease;
+    line-height: 1.3;
   }
+  .mode-btn:active { transform: scale(0.97); }
+  .mode-btn:hover { background: #ffb920; }
+  .mode-btn:disabled { background: var(--amber-dim); color: #a08a55; cursor: default; }
 
-  .locate-btn:active { transform: scale(0.98); }
-  .locate-btn:hover { background: #ffb920; }
-  .locate-btn:disabled {
-    background: var(--amber-dim);
-    color: #a08a55;
-    cursor: default;
+  .mode-btn.secondary {
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+  }
+  .mode-btn.secondary:hover { border-color: var(--point); color: var(--point); background: transparent; }
+  .mode-btn.secondary.active {
+    border-color: var(--point);
+    color: var(--point);
+    background: rgba(124,156,255,0.08);
   }
 
   .result {
@@ -133,6 +185,14 @@
     align-items: baseline;
     border-top: 1px solid var(--panel-border);
     padding-top: 12px;
+  }
+
+  .result-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin-bottom: 4px;
   }
 
   .result-name {
@@ -170,6 +230,22 @@
   }
 
   .result-route:hover { border-color: var(--amber); color: var(--amber); }
+
+  .export-link {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 2px;
+  }
+  .export-link:hover { color: var(--point); }
 
   .error-msg {
     margin-top: 12px;
@@ -210,6 +286,15 @@
     box-shadow: 0 0 0 4px rgba(74,158,255,0.25);
   }
 
+  .point-icon {
+    width: 16px;
+    height: 16px;
+    background: var(--point);
+    border: 3px solid #14171a;
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(124,156,255,0.25);
+  }
+
   .leaflet-popup-content-wrapper {
     background: var(--panel);
     color: var(--text);
@@ -221,16 +306,99 @@
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     margin: 10px 12px;
+    min-width: 150px;
   }
   .leaflet-popup-content b {
     font-family: 'Oswald', sans-serif;
     font-size: 14px;
   }
+  .popup-coords {
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    margin-top: 3px;
+  }
+  .popup-delete {
+    display: inline-block;
+    margin-top: 9px;
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .popup-delete:hover { background: rgba(225,85,84,0.12); }
   .leaflet-control-attribution {
     background: rgba(20,23,26,0.7) !important;
     color: var(--text-dim) !important;
   }
   .leaflet-control-attribution a { color: var(--text-dim) !important; }
+
+  /* --- Add-location modal --- */
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(10,12,14,0.6);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal-box {
+    width: 100%;
+    max-width: 480px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px 16px 0 0;
+    padding: 20px;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.4);
+  }
+  .modal-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .modal-coords {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .modal-input {
+    width: 100%;
+    background: #14171a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    padding: 11px 12px;
+    border-radius: 9px;
+    margin-bottom: 12px;
+  }
+  .modal-input:focus { outline: none; border-color: var(--amber); }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-btn {
+    flex: 1;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 11px;
+    border-radius: 9px;
+    border: none;
+    cursor: pointer;
+  }
+  .modal-btn.save { background: var(--amber); color: #1a1400; }
+  .modal-btn.save:hover { background: #ffb920; }
+  .modal-btn.cancel { background: transparent; border: 1px solid var(--panel-border); color: var(--text); }
+  .modal-btn.cancel:hover { border-color: var(--danger); color: var(--danger); }
 </style>
 </head>
 <body>
@@ -242,15 +410,56 @@
   <div class="count-pill" id="countPill">– Standorte</div>
 </div>
 
+<div class="hint-bar" id="hintBar">
+  <span id="hintText">Tippe auf die Karte …</span>
+  <button id="hintCancel">Abbrechen</button>
+</div>
+
 <div class="panel">
-  <button class="locate-btn" id="locateBtn">Nächsten Automat finden</button>
+  <div class="mode-row">
+    <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
+    <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
+    <button class="mode-btn secondary" id="addBtn">Automat<br>hinzufügen</button>
+  </div>
+  <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
   <div class="error-msg" id="errorMsg"></div>
   <div class="result" id="result">
     <div class="result-row">
-      <div class="result-name" id="resultName">–</div>
+      <div>
+        <div class="result-label" id="resultLabel">Nächster Automat</div>
+        <div class="result-name" id="resultName">–</div>
+      </div>
       <div class="result-dist" id="resultDist">–<span>m</span></div>
     </div>
     <a class="result-route" id="resultRoute" href="#" target="_blank" rel="noopener">Route öffnen →</a>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Neuer Automat</div>
+    <div class="modal-coords" id="modalCoords">–</div>
+    <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
+      <button class="modal-btn save" id="modalSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="exportOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Liste exportieren</div>
+    <div class="modal-coords">
+      Kopiere den Text unten und ersetze damit den kompletten Inhalt<br>
+      der Datei <b>automaten.json</b> in eurem GitHub-Repository<br>
+      (Datei öffnen → Stift-Symbol "Edit" → Inhalt ersetzen → Commit).
+    </div>
+    <textarea id="exportTextarea" class="modal-input" style="height:180px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:none;" readonly></textarea>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="exportClose">Schließen</button>
+      <button class="modal-btn save" id="exportCopy">In Zwischenablage kopieren</button>
+    </div>
   </div>
 </div>
 
@@ -258,22 +467,48 @@
 <script>
 
   // ============================================================
-  // STANDORTE: Hier eure echten Automaten eintragen.
-  // Koordinaten findet ihr z.B. über Rechtsklick auf Google Maps.
+  // STANDORTE: Der gemeinsame Startbestand steht in automaten.json
+  // (liegt im selben Ordner wie diese Datei) und wird beim Laden
+  // per fetch() abgerufen. Wer die Liste für alle aktualisieren
+  // will: über "Liste exportieren" den aktuellen Stand kopieren
+  // und in automaten.json bei GitHub einfügen (siehe Anleitung
+  // im Export-Fenster der App).
+  //
+  // Zusätzlich lokal hinzugefügte / gelöschte Standorte werden nur
+  // im eigenen Browser gespeichert (localStorage), bis sie jemand
+  // per Export in automaten.json übernimmt.
   // ============================================================
-  const automaten = [
-    { name: "Automat Hauptstraße",      lat: 52.5200, lng: 13.4040 },
-    { name: "Automat am Bahnhof",       lat: 52.5250, lng: 13.4100 },
-    { name: "Automat Kneipe Ecke",      lat: 52.5150, lng: 13.3950 },
-    { name: "Automat Späti Nord",       lat: 52.5300, lng: 13.4150 },
-  ];
+  let seedAutomaten = [];
+
+  const STORAGE_CUSTOM = 'automatfinder_custom';
+  const STORAGE_DELETED = 'automatfinder_deleted';
+
+  function loadCustom() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_CUSTOM)) || []; }
+    catch { return []; }
+  }
+  function saveCustom(list) {
+    localStorage.setItem(STORAGE_CUSTOM, JSON.stringify(list));
+  }
+  function loadDeleted() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_DELETED)) || []; }
+    catch { return []; }
+  }
+  function saveDeleted(list) {
+    localStorage.setItem(STORAGE_DELETED, JSON.stringify(list));
+  }
+
+  function getVisibleAutomaten() {
+    const deleted = loadDeleted();
+    const combined = [...seedAutomaten, ...loadCustom()];
+    return combined.filter(a => !deleted.includes(a.id));
+  }
 
   // ============================================================
   // Karte initialisieren
   // ============================================================
-  const map = L.map('map', { zoomControl: false }).setView(
-    [automaten[0].lat, automaten[0].lng], 14
-  );
+  const mapEl = document.getElementById('map');
+  const map = L.map('map', { zoomControl: false }).setView([52.5200, 13.4040], 14);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -282,20 +517,73 @@
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  document.getElementById('countPill').textContent =
-    automaten.length + (automaten.length === 1 ? ' Standort' : ' Standorte');
-
   function makeDivIcon(className) {
     return L.divIcon({ className: '', html: `<div class="${className}"></div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
   }
 
-  const markers = automaten.map(a => {
-    const m = L.marker([a.lat, a.lng], { icon: makeDivIcon('automat-icon') }).addTo(map);
-    m.bindPopup(`<b>${a.name}</b><br>${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}`);
-    return m;
-  });
+  const markerLayer = L.layerGroup().addTo(map);
+  let markerRefs = {}; // id -> leaflet marker
+
+  function renderMarkers() {
+    markerLayer.clearLayers();
+    markerRefs = {};
+    const list = getVisibleAutomaten();
+    document.getElementById('countPill').textContent =
+      list.length + (list.length === 1 ? ' Standort' : ' Standorte');
+
+    list.forEach(a => {
+      const m = L.marker([a.lat, a.lng], { icon: makeDivIcon('automat-icon') });
+      const popupEl = document.createElement('div');
+      popupEl.innerHTML = `<b>${escapeHtml(a.name)}</b>
+        <div class="popup-coords">${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>`;
+      const delBtn = document.createElement('button');
+      delBtn.className = 'popup-delete';
+      delBtn.textContent = 'Löschen';
+      delBtn.addEventListener('click', () => deleteAutomat(a.id));
+      popupEl.appendChild(delBtn);
+      m.bindPopup(popupEl);
+      m.addTo(markerLayer);
+      markerRefs[a.id] = m;
+    });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function deleteAutomat(id) {
+    if (!confirm('Diesen Automat wirklich löschen?')) return;
+    if (id.startsWith('seed-')) {
+      const deleted = loadDeleted();
+      if (!deleted.includes(id)) { deleted.push(id); saveDeleted(deleted); }
+    } else {
+      const custom = loadCustom().filter(a => a.id !== id);
+      saveCustom(custom);
+    }
+    renderMarkers();
+    resultEl.classList.remove('visible');
+  }
+
+  async function init() {
+    try {
+      const res = await fetch('./automaten.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      seedAutomaten = await res.json();
+    } catch (err) {
+      console.error('automaten.json konnte nicht geladen werden:', err);
+      showError('automaten.json konnte nicht geladen werden. Läuft die Seite über GitHub Pages / einen Server (nicht als lokale Datei geöffnet)?');
+    }
+    if (seedAutomaten.length) {
+      map.setView([seedAutomaten[0].lat, seedAutomaten[0].lng], 14);
+    }
+    renderMarkers();
+  }
+  init();
 
   let userMarker = null;
+  let pointMarker = null;
 
   // ============================================================
   // Haversine-Formel: Distanz zwischen zwei Koordinaten in Metern
@@ -312,32 +600,77 @@
   }
 
   const locateBtn = document.getElementById('locateBtn');
+  const pointBtn = document.getElementById('pointBtn');
+  const addBtn = document.getElementById('addBtn');
   const resultEl = document.getElementById('result');
+  const resultLabel = document.getElementById('resultLabel');
   const resultName = document.getElementById('resultName');
   const resultDist = document.getElementById('resultDist');
   const resultRoute = document.getElementById('resultRoute');
   const errorMsg = document.getElementById('errorMsg');
+  const hintBar = document.getElementById('hintBar');
+  const hintText = document.getElementById('hintText');
+  const hintCancel = document.getElementById('hintCancel');
 
+  // ---- Modus-Verwaltung: idle / pick-point / add-automat ----
+  let mode = 'idle';
+
+  function setMode(newMode, hint) {
+    mode = newMode;
+    mapEl.classList.toggle('picking', mode !== 'idle');
+    pointBtn.classList.toggle('active', mode === 'pick-point');
+    addBtn.classList.toggle('active', mode === 'add-automat');
+    if (mode === 'idle') {
+      hintBar.classList.remove('visible');
+    } else {
+      hintText.textContent = hint;
+      hintBar.classList.add('visible');
+    }
+  }
+
+  hintCancel.addEventListener('click', () => setMode('idle'));
+
+  pointBtn.addEventListener('click', () => {
+    setMode(mode === 'pick-point' ? 'idle' : 'pick-point', 'Tippe auf die Karte, um den Startpunkt zu wählen');
+  });
+
+  addBtn.addEventListener('click', () => {
+    setMode(mode === 'add-automat' ? 'idle' : 'add-automat', 'Tippe auf die Karte, wo der Automat steht');
+  });
+
+  map.on('click', e => {
+    if (mode === 'pick-point') {
+      const { lat, lng } = e.latlng;
+      if (pointMarker) map.removeLayer(pointMarker);
+      pointMarker = L.marker([lat, lng], { icon: makeDivIcon('point-icon') }).addTo(map);
+      findNearestFrom(lat, lng, 'Nächster ab gewähltem Punkt');
+      setMode('idle');
+    } else if (mode === 'add-automat') {
+      openAddModal(e.latlng.lat, e.latlng.lng);
+      setMode('idle');
+    }
+  });
+
+  // ---- "Mein Standort" ----
   locateBtn.addEventListener('click', () => {
     if (!navigator.geolocation) {
       showError('Geolocation wird von diesem Browser nicht unterstützt.');
       return;
     }
     locateBtn.disabled = true;
-    locateBtn.textContent = 'Standort wird ermittelt …';
     errorMsg.classList.remove('visible');
 
     navigator.geolocation.getCurrentPosition(
       pos => {
         const { latitude, longitude } = pos.coords;
-        onLocated(latitude, longitude);
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.marker([latitude, longitude], { icon: makeDivIcon('user-icon') }).addTo(map);
+        findNearestFrom(latitude, longitude, 'Nächster Automat');
         locateBtn.disabled = false;
-        locateBtn.textContent = 'Nächsten Automat finden';
       },
-      err => {
+      () => {
         showError('Standort konnte nicht ermittelt werden. Bitte Standortzugriff erlauben.');
         locateBtn.disabled = false;
-        locateBtn.textContent = 'Nächsten Automat finden';
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -349,35 +682,113 @@
     resultEl.classList.remove('visible');
   }
 
-  function onLocated(userLat, userLng) {
-    if (userMarker) map.removeLayer(userMarker);
-    userMarker = L.marker([userLat, userLng], { icon: makeDivIcon('user-icon') }).addTo(map);
+  function findNearestFrom(fromLat, fromLng, label) {
+    const list = getVisibleAutomaten();
+    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon')?.classList.remove('nearest'));
 
     let nearest = null;
     let nearestDist = Infinity;
-    markers.forEach((m, i) => {
-      const a = automaten[i];
-      const d = distanceMeters(userLat, userLng, a.lat, a.lng);
-      m.getElement()?.querySelector('.automat-icon')?.classList.remove('nearest');
-      if (d < nearestDist) { nearestDist = d; nearest = { marker: m, data: a }; }
+    list.forEach(a => {
+      const d = distanceMeters(fromLat, fromLng, a.lat, a.lng);
+      if (d < nearestDist) { nearestDist = d; nearest = a; }
     });
 
-    if (!nearest) return;
+    if (!nearest) {
+      showError('Keine Automaten vorhanden.');
+      return;
+    }
 
-    nearest.marker.getElement()?.querySelector('.automat-icon')?.classList.add('nearest');
+    markerRefs[nearest.id]?.getElement()?.querySelector('.automat-icon')?.classList.add('nearest');
 
-    const bounds = L.latLngBounds([userLat, userLng], [nearest.data.lat, nearest.data.lng]);
+    const bounds = L.latLngBounds([fromLat, fromLng], [nearest.lat, nearest.lng]);
     map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
 
-    resultName.textContent = nearest.data.name;
+    resultLabel.textContent = label;
+    resultName.textContent = nearest.name;
     if (nearestDist < 1000) {
       resultDist.innerHTML = Math.round(nearestDist) + '<span>m</span>';
     } else {
       resultDist.innerHTML = (nearestDist / 1000).toFixed(1) + '<span>km</span>';
     }
-    resultRoute.href = `https://www.google.com/maps/dir/?api=1&destination=${nearest.data.lat},${nearest.data.lng}`;
+    resultRoute.href = `https://www.google.com/maps/dir/?api=1&destination=${nearest.lat},${nearest.lng}`;
     resultEl.classList.add('visible');
   }
+
+  // ---- "Automat hinzufügen" Modal ----
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalCoords = document.getElementById('modalCoords');
+  const modalInput = document.getElementById('modalInput');
+  const modalSave = document.getElementById('modalSave');
+  const modalCancel = document.getElementById('modalCancel');
+  let pendingCoords = null;
+  let pendingMarkerPreview = null;
+
+  function openAddModal(lat, lng) {
+    pendingCoords = { lat, lng };
+    modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    modalInput.value = '';
+    modalOverlay.classList.add('visible');
+    setTimeout(() => modalInput.focus(), 50);
+  }
+
+  function closeAddModal() {
+    modalOverlay.classList.remove('visible');
+    pendingCoords = null;
+  }
+
+  modalCancel.addEventListener('click', closeAddModal);
+  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeAddModal(); });
+
+  modalSave.addEventListener('click', () => {
+    if (!pendingCoords) return;
+    const name = modalInput.value.trim() || 'Neuer Automat';
+    const custom = loadCustom();
+    const nextNum = custom.length
+      ? Math.max(...custom.map(a => parseInt(a.id.split('-')[1]) || 0)) + 1
+      : 1;
+    custom.push({
+      id: 'custom-' + nextNum,
+      name,
+      lat: Math.round(pendingCoords.lat * 100000) / 100000,
+      lng: Math.round(pendingCoords.lng * 100000) / 100000
+    });
+    saveCustom(custom);
+    renderMarkers();
+    closeAddModal();
+  });
+
+  modalInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') modalSave.click();
+    if (e.key === 'Escape') closeAddModal();
+  });
+
+  // ---- "Liste exportieren" ----
+  const exportBtn = document.getElementById('exportBtn');
+  const exportOverlay = document.getElementById('exportOverlay');
+  const exportTextarea = document.getElementById('exportTextarea');
+  const exportClose = document.getElementById('exportClose');
+  const exportCopy = document.getElementById('exportCopy');
+
+  exportBtn.addEventListener('click', () => {
+    const list = getVisibleAutomaten().map(({ id, name, lat, lng }) => ({ id, name, lat, lng }));
+    exportTextarea.value = JSON.stringify(list, null, 2);
+    exportOverlay.classList.add('visible');
+  });
+
+  exportClose.addEventListener('click', () => exportOverlay.classList.remove('visible'));
+  exportOverlay.addEventListener('click', e => { if (e.target === exportOverlay) exportOverlay.classList.remove('visible'); });
+
+  exportCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(exportTextarea.value);
+      exportCopy.textContent = 'Kopiert ✓';
+      setTimeout(() => { exportCopy.textContent = 'In Zwischenablage kopieren'; }, 1800);
+    } catch {
+      exportTextarea.select();
+      document.execCommand('copy');
+    }
+  });
+
 </script>
 
 </body>
