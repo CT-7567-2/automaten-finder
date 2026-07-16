@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Automat-Finder</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #14171a;
+    --panel: #1e2226;
+    --panel-border: #2c3136;
+    --amber: #f2a900;
+    --amber-dim: #8a6300;
+    --text: #eceeef;
+    --text-dim: #8c949c;
+    --danger: #e15554;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    filter: saturate(0.35) brightness(0.85);
+  }
+
+  /* --- Top bar --- */
+  .topbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: linear-gradient(to bottom, rgba(20,23,26,0.95), rgba(20,23,26,0));
+    pointer-events: none;
+  }
+
+  .brand {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 10px;
+    height: 10px;
+    background: var(--amber);
+    display: inline-block;
+    border-radius: 2px;
+  }
+
+  .count-pill {
+    pointer-events: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    padding: 5px 10px;
+    border-radius: 20px;
+  }
+
+  /* --- Bottom control panel --- */
+  .panel {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    z-index: 10;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .locate-btn {
+    width: 100%;
+    background: var(--amber);
+    color: #1a1400;
+    border: none;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 13px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+
+  .locate-btn:active { transform: scale(0.98); }
+  .locate-btn:hover { background: #ffb920; }
+  .locate-btn:disabled {
+    background: var(--amber-dim);
+    color: #a08a55;
+    cursor: default;
+  }
+
+  .result {
+    margin-top: 14px;
+    display: none;
+  }
+
+  .result.visible { display: block; }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-top: 1px solid var(--panel-border);
+    padding-top: 12px;
+  }
+
+  .result-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .result-dist {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--amber);
+    letter-spacing: -0.02em;
+  }
+
+  .result-dist span {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    margin-left: 3px;
+  }
+
+  .result-route {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-decoration: none;
+    border: 1px solid var(--panel-border);
+    padding: 8px 12px;
+    border-radius: 8px;
+  }
+
+  .result-route:hover { border-color: var(--amber); color: var(--amber); }
+
+  .error-msg {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--danger);
+    display: none;
+  }
+  .error-msg.visible { display: block; }
+
+  /* --- Custom markers --- */
+  .automat-icon {
+    width: 22px;
+    height: 22px;
+    background: var(--amber);
+    border: 2px solid #14171a;
+    border-radius: 5px 5px 5px 0;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+
+  .automat-icon.nearest {
+    background: #ffffff;
+    border-color: var(--amber);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(242,169,0,0.5); }
+    50% { box-shadow: 0 0 0 8px rgba(242,169,0,0); }
+  }
+
+  .user-icon {
+    width: 16px;
+    height: 16px;
+    background: #4a9eff;
+    border: 3px solid #14171a;
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(74,158,255,0.25);
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+  }
+  .leaflet-popup-tip { background: var(--panel); }
+  .leaflet-popup-content {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    margin: 10px 12px;
+  }
+  .leaflet-popup-content b {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+  }
+  .leaflet-control-attribution {
+    background: rgba(20,23,26,0.7) !important;
+    color: var(--text-dim) !important;
+  }
+  .leaflet-control-attribution a { color: var(--text-dim) !important; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-mark"></span>AUTOMAT-FINDER</div>
+  <div class="count-pill" id="countPill">– Standorte</div>
+</div>
+
+<div class="panel">
+  <button class="locate-btn" id="locateBtn">Nächsten Automat finden</button>
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="result" id="result">
+    <div class="result-row">
+      <div class="result-name" id="resultName">–</div>
+      <div class="result-dist" id="resultDist">–<span>m</span></div>
+    </div>
+    <a class="result-route" id="resultRoute" href="#" target="_blank" rel="noopener">Route öffnen →</a>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+
+  // ============================================================
+  // STANDORTE: Hier eure echten Automaten eintragen.
+  // Koordinaten findet ihr z.B. über Rechtsklick auf Google Maps.
+  // ============================================================
+  const automaten = [
+    { name: "Automat Hauptstraße",      lat: 52.5200, lng: 13.4040 },
+    { name: "Automat am Bahnhof",       lat: 52.5250, lng: 13.4100 },
+    { name: "Automat Kneipe Ecke",      lat: 52.5150, lng: 13.3950 },
+    { name: "Automat Späti Nord",       lat: 52.5300, lng: 13.4150 },
+  ];
+
+  // ============================================================
+  // Karte initialisieren
+  // ============================================================
+  const map = L.map('map', { zoomControl: false }).setView(
+    [automaten[0].lat, automaten[0].lng], 14
+  );
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  document.getElementById('countPill').textContent =
+    automaten.length + (automaten.length === 1 ? ' Standort' : ' Standorte');
+
+  function makeDivIcon(className) {
+    return L.divIcon({ className: '', html: `<div class="${className}"></div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+  }
+
+  const markers = automaten.map(a => {
+    const m = L.marker([a.lat, a.lng], { icon: makeDivIcon('automat-icon') }).addTo(map);
+    m.bindPopup(`<b>${a.name}</b><br>${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}`);
+    return m;
+  });
+
+  let userMarker = null;
+
+  // ============================================================
+  // Haversine-Formel: Distanz zwischen zwei Koordinaten in Metern
+  // ============================================================
+  function distanceMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const toRad = deg => deg * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  const locateBtn = document.getElementById('locateBtn');
+  const resultEl = document.getElementById('result');
+  const resultName = document.getElementById('resultName');
+  const resultDist = document.getElementById('resultDist');
+  const resultRoute = document.getElementById('resultRoute');
+  const errorMsg = document.getElementById('errorMsg');
+
+  locateBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      showError('Geolocation wird von diesem Browser nicht unterstützt.');
+      return;
+    }
+    locateBtn.disabled = true;
+    locateBtn.textContent = 'Standort wird ermittelt …';
+    errorMsg.classList.remove('visible');
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        onLocated(latitude, longitude);
+        locateBtn.disabled = false;
+        locateBtn.textContent = 'Nächsten Automat finden';
+      },
+      err => {
+        showError('Standort konnte nicht ermittelt werden. Bitte Standortzugriff erlauben.');
+        locateBtn.disabled = false;
+        locateBtn.textContent = 'Nächsten Automat finden';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.classList.add('visible');
+    resultEl.classList.remove('visible');
+  }
+
+  function onLocated(userLat, userLng) {
+    if (userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([userLat, userLng], { icon: makeDivIcon('user-icon') }).addTo(map);
+
+    let nearest = null;
+    let nearestDist = Infinity;
+    markers.forEach((m, i) => {
+      const a = automaten[i];
+      const d = distanceMeters(userLat, userLng, a.lat, a.lng);
+      m.getElement()?.querySelector('.automat-icon')?.classList.remove('nearest');
+      if (d < nearestDist) { nearestDist = d; nearest = { marker: m, data: a }; }
+    });
+
+    if (!nearest) return;
+
+    nearest.marker.getElement()?.querySelector('.automat-icon')?.classList.add('nearest');
+
+    const bounds = L.latLngBounds([userLat, userLng], [nearest.data.lat, nearest.data.lng]);
+    map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
+
+    resultName.textContent = nearest.data.name;
+    if (nearestDist < 1000) {
+      resultDist.innerHTML = Math.round(nearestDist) + '<span>m</span>';
+    } else {
+      resultDist.innerHTML = (nearestDist / 1000).toFixed(1) + '<span>km</span>';
+    }
+    resultRoute.href = `https://www.google.com/maps/dir/?api=1&destination=${nearest.data.lat},${nearest.data.lng}`;
+    resultEl.classList.add('visible');
+  }
+</script>
+
+</body>
+</html>
