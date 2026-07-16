@@ -234,7 +234,7 @@
   .export-link {
     display: block;
     width: 100%;
-    margin-top: 10px;
+    margin-top: 8px;
     background: transparent;
     border: none;
     color: var(--text-dim);
@@ -244,8 +244,10 @@
     text-underline-offset: 2px;
     cursor: pointer;
     padding: 2px;
+    text-align: center;
   }
   .export-link:hover { color: var(--point); }
+  #resetBtn:hover { color: var(--danger); }
 
   .error-msg {
     margin-top: 12px;
@@ -422,6 +424,7 @@
     <button class="mode-btn secondary" id="addBtn">Automat<br>hinzufügen</button>
   </div>
   <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
+  <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
   <div class="error-msg" id="errorMsg"></div>
   <div class="result" id="result">
     <div class="result-row">
@@ -749,15 +752,17 @@
   modalCancel.addEventListener('click', closeAddModal);
   modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeAddModal(); });
 
+  function makeId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
   modalSave.addEventListener('click', () => {
     if (!pendingCoords) return;
     const name = modalInput.value.trim() || 'Neuer Automat';
     const custom = loadCustom();
-    const nextNum = custom.length
-      ? Math.max(...custom.map(a => parseInt(a.id.split('-')[1]) || 0)) + 1
-      : 1;
     custom.push({
-      id: 'custom-' + nextNum,
+      id: makeId(),
       name,
       lat: Math.round(pendingCoords.lat * 100000) / 100000,
       lng: Math.round(pendingCoords.lng * 100000) / 100000
@@ -797,6 +802,23 @@
       exportTextarea.select();
       document.execCommand('copy');
     }
+  });
+
+  // ---- "Lokale Änderungen zurücksetzen" ----
+  const resetBtn = document.getElementById('resetBtn');
+  resetBtn.addEventListener('click', () => {
+    const custom = loadCustom();
+    const deleted = loadDeleted();
+    if (!custom.length && !deleted.length) {
+      resetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
+      setTimeout(() => { resetBtn.textContent = 'Lokale Änderungen zurücksetzen'; }, 1800);
+      return;
+    }
+    if (!confirm('Alle lokal hinzugefügten und gelöschten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return;
+    localStorage.removeItem(STORAGE_CUSTOM);
+    localStorage.removeItem(STORAGE_DELETED);
+    renderMarkers();
+    resultEl.classList.remove('visible');
   });
 
 </script>
