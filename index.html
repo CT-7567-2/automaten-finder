@@ -227,11 +227,30 @@
   }
 
   .result {
+    position: relative;
     margin-top: 14px;
     display: none;
   }
 
   .result.visible { display: block; }
+
+  .result-close {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-size: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .result-close:hover { color: var(--danger); border-color: var(--danger); }
 
   .result-row {
     display: flex;
@@ -525,6 +544,7 @@
   <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
   <div class="error-msg" id="errorMsg"></div>
   <div class="result" id="result">
+    <button class="result-close" id="resultClose" aria-label="Schließen">✕</button>
     <div class="result-row">
       <div>
         <div class="result-label" id="resultLabel">Nächster Automat</div>
@@ -737,6 +757,7 @@
   const resultDist = document.getElementById('resultDist');
   const resultWalk = document.getElementById('resultWalk');
   const resultRoute = document.getElementById('resultRoute');
+  const resultClose = document.getElementById('resultClose');
   const errorMsg = document.getElementById('errorMsg');
   const hintBar = document.getElementById('hintBar');
   const hintText = document.getElementById('hintText');
@@ -813,6 +834,15 @@
     resultWalk.classList.remove('visible', 'loading');
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
   }
+
+  function clearResult() {
+    resultEl.classList.remove('visible');
+    resultWalk.classList.remove('visible', 'loading');
+    errorMsg.classList.remove('visible');
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
+  }
+  resultClose.addEventListener('click', clearResult);
 
   function findNearestFrom(fromLat, fromLng, label) {
     const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type));
