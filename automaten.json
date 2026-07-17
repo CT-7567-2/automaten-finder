@@ -1,6 +1,6 @@
 [
-  { "id": "1", "name": "Automat Jettenburg",  "type": "automat","note": "", "lat": 48.5011, "lng": 9.1275 },
-  { "id": "2", "name": "Automat Oferdingen",   "type": "automat","note": "", "lat": 48.5491, "lng": 9.2076 },
-  { "id": "3", "name": "Automat Reicheneck",    "type": "automat","note": "",   "lat": 48.5394, "lng": 9.2328 },
-  { "id": "4", "name": "Kaufland",           "type": "laden","note": "",   "lat": 48.5258, "lng": 9.1446 }
+  { "id": "1", "name": "Automat Jettenburg",  "type": "automat","note": "24/7", "lat": 48.5011, "lng": 9.1275 },
+  { "id": "2", "name": "Automat Oferdingen",   "type": "automat","note": "24/7", "lat": 48.5491, "lng": 9.2076 },
+  { "id": "3", "name": "Automat Reicheneck",    "type": "automat","note": "24/7",   "lat": 48.5394, "lng": 9.2328 },
+  { "id": "4", "name": "Kaufland",           "type": "laden","note": "Öffnungszeiten beachten",   "lat": 48.5258, "lng": 9.1446 }
 ]
