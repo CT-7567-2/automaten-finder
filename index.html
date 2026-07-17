@@ -236,7 +236,7 @@
   .result-row {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-end;
     border-top: 1px solid var(--panel-border);
     padding-top: 12px;
   }
@@ -269,6 +269,26 @@
     font-weight: 500;
     margin-left: 3px;
   }
+
+  .result-dist-note {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    text-align: right;
+    margin-top: 1px;
+  }
+
+  .result-walk {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--shop);
+    margin-top: 8px;
+  }
+  .result-walk.visible { display: flex; }
+  .result-walk.loading { color: var(--text-dim); }
 
   .result-route {
     display: inline-block;
@@ -510,8 +530,12 @@
         <div class="result-label" id="resultLabel">Nächster Automat</div>
         <div class="result-name" id="resultName">–</div>
       </div>
-      <div class="result-dist" id="resultDist">–<span>m</span></div>
+      <div>
+        <div class="result-dist" id="resultDist">–<span>m</span></div>
+        <div class="result-dist-note">Luftlinie</div>
+      </div>
     </div>
+    <div class="result-walk" id="resultWalk"></div>
     <a class="result-route" id="resultRoute" href="#" target="_blank" rel="noopener">Route öffnen →</a>
   </div>
 </div>
@@ -711,6 +735,7 @@
   const resultLabel = document.getElementById('resultLabel');
   const resultName = document.getElementById('resultName');
   const resultDist = document.getElementById('resultDist');
+  const resultWalk = document.getElementById('resultWalk');
   const resultRoute = document.getElementById('resultRoute');
   const errorMsg = document.getElementById('errorMsg');
   const hintBar = document.getElementById('hintBar');
@@ -785,6 +810,8 @@
     errorMsg.textContent = msg;
     errorMsg.classList.add('visible');
     resultEl.classList.remove('visible');
+    resultWalk.classList.remove('visible', 'loading');
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
   }
 
   function findNearestFrom(fromLat, fromLng, label) {
@@ -815,8 +842,53 @@
     } else {
       resultDist.innerHTML = (nearestDist / 1000).toFixed(1) + '<span>km</span>';
     }
-    resultRoute.href = `https://www.google.com/maps/dir/?api=1&destination=${nearest.lat},${nearest.lng}`;
+    // origin explizit mitgeben, sonst nimmt Google Maps immer den
+    // aktuellen GPS-Standort statt des hier gewählten Startpunkts
+    resultRoute.href = `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${nearest.lat},${nearest.lng}&travelmode=walking`;
     resultEl.classList.add('visible');
+
+    drawWalkingRoute(fromLat, fromLng, nearest.lat, nearest.lng);
+  }
+
+  // ============================================================
+  // Echte Fußweg-Route zeichnen (via öffentlichem OSRM-Dienst).
+  // Die Distanz oben bleibt die Luftlinie; hier kommt zusätzlich
+  // die tatsächliche Gehstrecke inkl. ungefährer Gehzeit dazu.
+  // Schlägt der Dienst fehl (offline, überlastet, o.ä.), wird
+  // eine gestrichelte Luftlinie als Rückfallebene gezeigt.
+  // ============================================================
+  let routeLayer = null;
+
+  async function drawWalkingRoute(fromLat, fromLng, toLat, toLng) {
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    resultWalk.classList.add('visible', 'loading');
+    resultWalk.textContent = 'Route wird berechnet …';
+
+    try {
+      const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/`
+        + `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const route = data.routes && data.routes[0];
+      if (!route) throw new Error('Keine Route erhalten');
+
+      const latlngs = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+      routeLayer = L.polyline(latlngs, { color: '#f2a900', weight: 4, opacity: 0.85 }).addTo(map);
+
+      const minutes = Math.max(1, Math.round(route.duration / 60));
+      const meters = Math.round(route.distance);
+      const distText = meters < 1000 ? meters + ' m' : (meters / 1000).toFixed(1) + ' km';
+      resultWalk.classList.remove('loading');
+      resultWalk.textContent = `≈ ${minutes} Min. zu Fuß (${distText} Fußweg)`;
+    } catch (err) {
+      console.warn('Routing fehlgeschlagen, zeige Luftlinie:', err);
+      routeLayer = L.polyline([[fromLat, fromLng], [toLat, toLng]], {
+        color: '#8c949c', weight: 2, dashArray: '6 6', opacity: 0.7
+      }).addTo(map);
+      resultWalk.classList.remove('loading');
+      resultWalk.textContent = 'Fußweg-Route aktuell nicht verfügbar – zeige Luftlinie.';
+    }
   }
 
   // ---- "Automat hinzufügen" Modal ----
