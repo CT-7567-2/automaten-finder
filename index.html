@@ -449,6 +449,26 @@
     cursor: pointer;
   }
   .popup-delete:hover { background: rgba(225,85,84,0.12); }
+  .popup-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 9px;
+    flex-wrap: wrap;
+  }
+  .popup-actions .popup-delete { margin-top: 0; }
+  .popup-route-link {
+    display: inline-block;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 7px;
+  }
+  .popup-route-link:hover { border-color: var(--amber); color: var(--amber); }
   .leaflet-control-attribution {
     background: rgba(20,23,26,0.7) !important;
     color: var(--text-dim) !important;
@@ -808,7 +828,23 @@
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
       delBtn.addEventListener('click', () => deleteAutomat(a.id));
-      popupEl.appendChild(delBtn);
+
+      // Bewusst OHNE origin-Parameter: dadurch fragt Google Maps selbst
+      // nach dem aktuellen Standort (bzw. nutzt ihn direkt), ohne dass
+      // diese Webseite dafür Standortzugriff braucht.
+      const routeLink = document.createElement('a');
+      routeLink.className = 'popup-route-link';
+      routeLink.href = `https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lng}&travelmode=walking`;
+      routeLink.target = '_blank';
+      routeLink.rel = 'noopener';
+      routeLink.textContent = 'Route (mein Standort) →';
+
+      const actions = document.createElement('div');
+      actions.className = 'popup-actions';
+      actions.appendChild(routeLink);
+      actions.appendChild(delBtn);
+      popupEl.appendChild(actions);
+
       m.bindPopup(popupEl);
       m.addTo(markerLayer);
       markerRefs[a.id] = m;
@@ -965,6 +1001,7 @@
     resultEl.classList.remove('visible');
     resultWalk.classList.remove('visible', 'loading');
     errorMsg.classList.remove('visible');
+    lastSearch = null;
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
     Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
     if (activeOriginMarker) {
@@ -976,7 +1013,10 @@
   }
   resultClose.addEventListener('click', clearResult);
 
+  let lastSearch = null; // { lat, lng, label } der zuletzt ausgeführten Suche
+
   function findNearestFrom(fromLat, fromLng, label) {
+    lastSearch = { lat: fromLat, lng: fromLng, label };
     const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type));
     Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
 
@@ -1138,6 +1178,12 @@
     }
     refreshFilterChips();
     renderMarkers();
+    // Falls gerade eine Route/Ergebnis angezeigt wird, mit der neuen
+    // Filterung neu berechnen (der bisher nächste Punkt könnte jetzt
+    // ausgeblendet sein).
+    if (lastSearch) {
+      findNearestFrom(lastSearch.lat, lastSearch.lng, lastSearch.label);
+    }
   }
   filterAutomat.addEventListener('click', () => toggleType('automat'));
   filterLaden.addEventListener('click', () => toggleType('laden'));
