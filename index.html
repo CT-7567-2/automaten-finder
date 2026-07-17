@@ -20,8 +20,7 @@
     --text-dim: #8c949c;
     --danger: #e15554;
     --point: #7c9cff;
-    --shop: #3fc79a;
-    --shop-dim: #1f5c47;
+    --walk-color: #3fc79a;
   }
 
   * { box-sizing: border-box; }
@@ -140,14 +139,17 @@
     gap: 8px;
   }
 
+  /* --- Generische Filter-/Kategorie-Chips (Karte & Liste) --- */
   .legend-row {
     display: flex;
     gap: 8px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
   }
 
   .legend-chip {
     flex: 1;
+    min-width: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -161,7 +163,7 @@
     padding: 7px 8px;
     border-radius: 8px;
     cursor: pointer;
-    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
 
   .legend-chip .dot {
@@ -169,28 +171,8 @@
     height: 10px;
     flex-shrink: 0;
   }
-
-  .legend-chip[data-type="automat"] .dot {
-    background: var(--amber);
-    border-radius: 2px 2px 2px 0;
-    transform: rotate(45deg);
-  }
-
-  .legend-chip[data-type="laden"] .dot {
-    background: var(--shop);
-    border-radius: 50%;
-  }
-
-  .legend-chip[data-type="automat"].active {
-    border-color: var(--amber);
-    color: var(--text);
-    background: rgba(242,169,0,0.08);
-  }
-  .legend-chip[data-type="laden"].active {
-    border-color: var(--shop);
-    color: var(--text);
-    background: rgba(63,199,154,0.08);
-  }
+  .legend-chip .dot.shape-circle { border-radius: 50%; }
+  .legend-chip .dot.shape-diamond { border-radius: 2px 2px 2px 0; transform: rotate(45deg); }
 
   .mode-btn {
     flex: 1;
@@ -228,12 +210,29 @@
     background: rgba(124,156,255,0.08);
   }
 
+  .export-link {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 2px;
+    text-align: center;
+  }
+  .export-link:hover { color: var(--point); }
+  #resetBtn:hover { color: var(--danger); }
+
   .result {
     position: relative;
     margin-top: 14px;
     display: none;
   }
-
   .result.visible { display: block; }
 
   .result-close {
@@ -305,7 +304,7 @@
     align-items: center;
     gap: 6px;
     font-size: 12.5px;
-    color: var(--shop);
+    color: var(--walk-color);
     margin-top: 8px;
   }
   .result-walk.visible { display: flex; }
@@ -323,26 +322,7 @@
     padding: 8px 12px;
     border-radius: 8px;
   }
-
   .result-route:hover { border-color: var(--amber); color: var(--amber); }
-
-  .export-link {
-    display: block;
-    width: 100%;
-    margin-top: 8px;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    cursor: pointer;
-    padding: 2px;
-    text-align: center;
-  }
-  .export-link:hover { color: var(--point); }
-  #resetBtn:hover { color: var(--danger); }
 
   .error-msg {
     margin-top: 12px;
@@ -352,46 +332,28 @@
   }
   .error-msg.visible { display: block; }
 
-  /* --- Custom markers --- */
-  .automat-icon {
+  /* --- Generische Marker-Icons (Kategorien) --- */
+  .marker-dot {
     width: 22px;
     height: 22px;
-    background: var(--amber);
     border: 2px solid #14171a;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  .marker-dot.shape-diamond {
     border-radius: 5px 5px 5px 0;
     transform: rotate(45deg);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
   }
-
-  .automat-icon.nearest {
-    background: #ffffff;
-    border-color: var(--amber);
-    animation: pulse 1.4s ease-in-out infinite;
-  }
-
-  .laden-icon {
+  .marker-dot.shape-circle {
     width: 20px;
     height: 20px;
-    background: var(--shop);
-    border: 2px solid #14171a;
     border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
   }
-
-  .laden-icon.nearest {
-    background: #ffffff;
-    border-color: var(--shop);
-    animation: pulse-shop 1.4s ease-in-out infinite;
+  .marker-dot.nearest {
+    animation: pulse-generic 1.4s ease-in-out infinite;
   }
-
-  @keyframes pulse-shop {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(63,199,154,0.5); }
-    50% { box-shadow: 0 0 0 8px rgba(63,199,154,0); }
-  }
-
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(242,169,0,0.5); }
-    50% { box-shadow: 0 0 0 8px rgba(242,169,0,0); }
+  @keyframes pulse-generic {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.55); }
+    50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
   }
 
   .user-icon {
@@ -423,7 +385,7 @@
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     margin: 10px 12px;
-    min-width: 150px;
+    min-width: 170px;
   }
   .leaflet-popup-content b {
     font-family: 'Oswald', sans-serif;
@@ -435,9 +397,14 @@
     font-size: 11px;
     margin-top: 3px;
   }
+  .popup-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 9px;
+    flex-wrap: wrap;
+  }
   .popup-delete {
     display: inline-block;
-    margin-top: 9px;
     background: transparent;
     border: 1px solid var(--danger);
     color: var(--danger);
@@ -449,13 +416,6 @@
     cursor: pointer;
   }
   .popup-delete:hover { background: rgba(225,85,84,0.12); }
-  .popup-actions {
-    display: flex;
-    gap: 6px;
-    margin-top: 9px;
-    flex-wrap: wrap;
-  }
-  .popup-actions .popup-delete { margin-top: 0; }
   .popup-route-link {
     display: inline-block;
     background: transparent;
@@ -552,8 +512,8 @@
   .list-panel {
     width: 100%;
     max-width: 480px;
-    height: 78vh;
-    max-height: 640px;
+    height: 82vh;
+    max-height: 680px;
     background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 16px 16px 0 0;
@@ -578,6 +538,7 @@
   .list-header .result-close { position: static; }
 
   #listSearch { margin-bottom: 10px; flex-shrink: 0; }
+  #listFilterRow { flex-shrink: 0; }
 
   .list-items {
     flex: 1;
@@ -602,15 +563,8 @@
     margin-top: 4px;
     flex-shrink: 0;
   }
-  .list-item[data-type="automat"] .dot {
-    background: var(--amber);
-    border-radius: 2px 2px 2px 0;
-    transform: rotate(45deg);
-  }
-  .list-item[data-type="laden"] .dot {
-    background: var(--shop);
-    border-radius: 50%;
-  }
+  .list-item .dot.shape-circle { border-radius: 50%; }
+  .list-item .dot.shape-diamond { border-radius: 2px 2px 2px 0; transform: rotate(45deg); }
 
   .list-item-body { flex: 1; min-width: 0; }
   .list-item-name {
@@ -658,14 +612,11 @@
 </div>
 
 <div class="panel">
-  <div class="legend-row">
-    <button class="legend-chip" data-type="automat" id="filterAutomat"><span class="dot"></span>Automaten</button>
-    <button class="legend-chip" data-type="laden" id="filterLaden"><span class="dot"></span>Läden</button>
-  </div>
+  <div class="legend-row" id="mapFilterRow"></div>
   <div class="mode-row">
     <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
-    <button class="mode-btn secondary" id="addBtn">Automat<br>hinzufügen</button>
+    <button class="mode-btn secondary" id="addBtn">Standort<br>hinzufügen</button>
   </div>
   <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
   <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
@@ -691,10 +642,7 @@
   <div class="modal-box">
     <div class="modal-title">Neuer Standort</div>
     <div class="modal-coords" id="modalCoords">–</div>
-    <div class="legend-row" id="modalTypeRow" style="margin-top:2px;">
-      <button class="legend-chip" data-type="automat" id="modalTypeAutomat"><span class="dot"></span>Automat</button>
-      <button class="legend-chip" data-type="laden" id="modalTypeLaden"><span class="dot"></span>Laden</button>
-    </div>
+    <div class="legend-row" id="modalTypeRow" style="margin-top:2px;"></div>
     <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
     <input type="text" class="modal-input" id="modalNote" placeholder="Notiz (optional), z.B. nur EC-Karte" maxlength="120">
     <div class="modal-actions">
@@ -727,12 +675,50 @@
       <button class="result-close" id="listClose" aria-label="Schließen">✕</button>
     </div>
     <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name oder Notiz …">
+    <div class="legend-row" id="listFilterRow"></div>
     <div class="list-items" id="listItems"></div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+
+  // ============================================================
+  // KATEGORIEN
+  // ------------------------------------------------------------
+  // Hier legst du fest, welche Arten von Standorten es gibt.
+  // Alles andere (Farben auf der Karte, Filter-Chips bei der Karte
+  // UND in der Liste, Auswahl im "Hinzufügen"-Dialog) wird
+  // automatisch aus dieser Liste erzeugt — du musst sonst nirgends
+  // im Code etwas ändern.
+  //
+  // Eine Kategorie hinzufügen: einfach einen neuen Eintrag ergänzen,
+  // z.B.:
+  //   kiosk: { label: 'Kiosk', labelPlural: 'Kioske', color: '#7c9cff', shape: 'circle' }
+  //
+  // Eine Kategorie entfernen: den Eintrag einfach löschen. Bestehende
+  // Standorte in automaten.json, die diesen "type" noch verwenden,
+  // fallen automatisch auf DEFAULT_CATEGORY zurück (siehe unten) statt
+  // zu verschwinden oder einen Fehler zu verursachen.
+  //
+  // Felder je Kategorie:
+  //   label        - Singular, z.B. im Popup ("Automat · 52.5, 13.4")
+  //   labelPlural   - Plural, z.B. auf den Filter-Chips ("Automaten")
+  //   color        - Hex-Farbcode für Pin & Filter-Punkt
+  //   shape        - 'diamond' (Raute) oder 'circle' (Kreis)
+  // ============================================================
+  const CATEGORIES = {
+    automat: { label: 'Automat', labelPlural: 'Automaten', color: '#f2a900', shape: 'diamond' },
+    laden:   { label: 'Laden',   labelPlural: 'Läden',      color: '#3fc79a', shape: 'circle'  }
+  };
+  const DEFAULT_CATEGORY = 'automat';
+
+  function categoryOf(type) {
+    return CATEGORIES[type] ? type : DEFAULT_CATEGORY;
+  }
+  function categoryIds() {
+    return Object.keys(CATEGORIES);
+  }
 
   // ============================================================
   // STANDORTE: Der gemeinsame Startbestand steht in automaten.json
@@ -750,9 +736,9 @@
   // eines Freundes versehentlich den falschen (neuen) Automaten
   // treffen.
   //
-  // "type": "automat" oder "laden" – steuert Symbol/Farbe auf der
-  // Karte und die Filter-Legende. Fehlt das Feld, wird "automat"
-  // angenommen.
+  // "type": einer der Schlüssel aus CATEGORIES oben (z.B. "automat"
+  // oder "laden"). Fehlt das Feld oder ist der Wert unbekannt, wird
+  // DEFAULT_CATEGORY angenommen.
   //
   // Zusätzlich lokal hinzugefügte / gelöschte Standorte werden nur
   // im eigenen Browser gespeichert (localStorage), bis sie jemand
@@ -784,10 +770,13 @@
     const combined = [...seedAutomaten, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, type: a.type === 'laden' ? 'laden' : 'automat', note: a.note || '' }));
+      .map(a => ({ ...a, type: categoryOf(a.type), note: a.note || '' }));
   }
 
-  let activeTypes = new Set(['automat', 'laden']);
+  // Filter für die KARTE (steuert auch die Nächster-Standort-Suche)
+  let activeTypes = new Set(categoryIds());
+  // Unabhängiger Filter für die LISTE
+  let listActiveTypes = new Set(categoryIds());
 
   // ============================================================
   // Karte initialisieren
@@ -802,8 +791,32 @@
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  function makeDivIcon(className) {
-    return L.divIcon({ className: '', html: `<div class="${className}"></div>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+  function makeDivIcon(html, size) {
+    return L.divIcon({ className: '', html, iconSize: size, iconAnchor: [size[0] / 2, size[1] / 2] });
+  }
+
+  function shapeClass(type) {
+    return CATEGORIES[categoryOf(type)].shape === 'circle' ? 'shape-circle' : 'shape-diamond';
+  }
+
+  function makeCategoryIcon(type) {
+    const cat = CATEGORIES[categoryOf(type)];
+    const html = `<div class="marker-dot ${shapeClass(type)}" style="background:${cat.color};"></div>`;
+    return makeDivIcon(html, [22, 22]);
+  }
+
+  function applyNearestState(dotEl, type, isNearest) {
+    if (!dotEl) return;
+    const cat = CATEGORIES[categoryOf(type)];
+    if (isNearest) {
+      dotEl.classList.add('nearest');
+      dotEl.style.background = '#ffffff';
+      dotEl.style.borderColor = cat.color;
+    } else {
+      dotEl.classList.remove('nearest');
+      dotEl.style.background = cat.color;
+      dotEl.style.borderColor = '#14171a';
+    }
   }
 
   const markerLayer = L.layerGroup().addTo(map);
@@ -818,12 +831,15 @@
       all.length + (all.length === 1 ? ' Standort' : ' Standorte');
 
     list.forEach(a => {
-      const iconClass = a.type === 'laden' ? 'laden-icon' : 'automat-icon';
-      const m = L.marker([a.lat, a.lng], { icon: makeDivIcon(iconClass) });
+      const cat = CATEGORIES[a.type];
+      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.type) });
+      m._categoryType = a.type;
+
       const popupEl = document.createElement('div');
       popupEl.innerHTML = `<b>${escapeHtml(a.name)}</b>
-        <div class="popup-coords">${a.type === 'laden' ? 'Laden' : 'Automat'} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
+        <div class="popup-coords">${escapeHtml(cat.label)} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
         ${a.note ? `<div class="popup-coords" style="margin-top:5px;color:var(--text);">${escapeHtml(a.note)}</div>` : ''}`;
+
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
@@ -858,7 +874,7 @@
   }
 
   function deleteAutomat(id) {
-    if (!confirm('Diesen Automat wirklich löschen?')) return;
+    if (!confirm('Diesen Standort wirklich löschen?')) return;
     if (fileIds.has(id)) {
       const deleted = loadDeleted();
       if (!deleted.includes(id)) { deleted.push(id); saveDeleted(deleted); }
@@ -944,14 +960,14 @@
   });
 
   addBtn.addEventListener('click', () => {
-    setMode(mode === 'add-automat' ? 'idle' : 'add-automat', 'Tippe auf die Karte, wo der Automat steht');
+    setMode(mode === 'add-automat' ? 'idle' : 'add-automat', 'Tippe auf die Karte, wo der Standort ist');
   });
 
   map.on('click', e => {
     if (mode === 'pick-point') {
       const { lat, lng } = e.latlng;
       if (pointMarker) map.removeLayer(pointMarker);
-      pointMarker = L.marker([lat, lng], { icon: makeDivIcon('point-icon') }).addTo(map);
+      pointMarker = L.marker([lat, lng], { icon: makeDivIcon('<div class="point-icon"></div>', [16, 16]) }).addTo(map);
       activeOriginMarker = pointMarker;
       lastKnownLocation = { lat, lng };
       findNearestFrom(lat, lng, 'Nächster ab gewähltem Punkt');
@@ -975,7 +991,7 @@
       pos => {
         const { latitude, longitude } = pos.coords;
         if (userMarker) map.removeLayer(userMarker);
-        userMarker = L.marker([latitude, longitude], { icon: makeDivIcon('user-icon') }).addTo(map);
+        userMarker = L.marker([latitude, longitude], { icon: makeDivIcon('<div class="user-icon"></div>', [16, 16]) }).addTo(map);
         activeOriginMarker = userMarker;
         lastKnownLocation = { lat: latitude, lng: longitude };
         findNearestFrom(latitude, longitude, 'Nächster Automat');
@@ -1003,7 +1019,7 @@
     errorMsg.classList.remove('visible');
     lastSearch = null;
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
+    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryType, false));
     if (activeOriginMarker) {
       map.removeLayer(activeOriginMarker);
       if (activeOriginMarker === userMarker) userMarker = null;
@@ -1018,7 +1034,7 @@
   function findNearestFrom(fromLat, fromLng, label) {
     lastSearch = { lat: fromLat, lng: fromLng, label };
     const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type));
-    Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
+    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryType, false));
 
     let nearest = null;
     let nearestDist = Infinity;
@@ -1028,11 +1044,12 @@
     });
 
     if (!nearest) {
-      showError('Keine passenden Standorte gefunden. Prüfe die Filter oben (Automaten/Läden).');
+      showError('Keine passenden Standorte gefunden. Prüfe die Filter oben.');
       return;
     }
 
-    markerRefs[nearest.id]?.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.add('nearest');
+    const nm = markerRefs[nearest.id];
+    applyNearestState(nm?.getElement()?.querySelector('.marker-dot'), nearest.type, true);
 
     const bounds = L.latLngBounds([fromLat, fromLng], [nearest.lat, nearest.lng]);
     map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
@@ -1093,32 +1110,64 @@
     }
   }
 
-  // ---- "Automat hinzufügen" Modal ----
+  // ---- "Standort hinzufügen" Modal ----
   const modalOverlay = document.getElementById('modalOverlay');
   const modalCoords = document.getElementById('modalCoords');
+  const modalTypeRow = document.getElementById('modalTypeRow');
   const modalInput = document.getElementById('modalInput');
   const modalNote = document.getElementById('modalNote');
   const modalSave = document.getElementById('modalSave');
   const modalCancel = document.getElementById('modalCancel');
-  const modalTypeAutomat = document.getElementById('modalTypeAutomat');
-  const modalTypeLaden = document.getElementById('modalTypeLaden');
   let pendingCoords = null;
-  let pendingType = 'automat';
+  let pendingType = DEFAULT_CATEGORY;
+
+  function buildDot(type) {
+    const cat = CATEGORIES[categoryOf(type)];
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + shapeClass(type);
+    dot.style.background = cat.color;
+    return dot;
+  }
+
+  function renderModalTypeChips() {
+    modalTypeRow.innerHTML = '';
+    categoryIds().forEach(type => {
+      const cat = CATEGORIES[type];
+      const btn = document.createElement('button');
+      btn.className = 'legend-chip';
+      btn.type = 'button';
+      btn.appendChild(buildDot(type));
+      btn.appendChild(document.createTextNode(cat.label));
+      btn.addEventListener('click', () => setPendingType(type));
+      btn.dataset.categoryType = type;
+      modalTypeRow.appendChild(btn);
+    });
+    refreshModalTypeChips();
+  }
+
+  function refreshModalTypeChips() {
+    [...modalTypeRow.children].forEach(btn => {
+      const isActive = btn.dataset.categoryType === pendingType;
+      const cat = CATEGORIES[btn.dataset.categoryType];
+      btn.classList.toggle('active', isActive);
+      btn.style.borderColor = isActive ? cat.color : '';
+      btn.style.color = isActive ? 'var(--text)' : '';
+      btn.style.background = isActive ? cat.color + '15' : 'transparent';
+    });
+  }
 
   function setPendingType(type) {
     pendingType = type;
-    modalTypeAutomat.classList.toggle('active', type === 'automat');
-    modalTypeLaden.classList.toggle('active', type === 'laden');
+    refreshModalTypeChips();
   }
-  modalTypeAutomat.addEventListener('click', () => setPendingType('automat'));
-  modalTypeLaden.addEventListener('click', () => setPendingType('laden'));
 
   function openAddModal(lat, lng) {
     pendingCoords = { lat, lng };
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
     modalNote.value = '';
-    setPendingType('automat');
+    renderModalTypeChips();
+    setPendingType(DEFAULT_CATEGORY);
     modalOverlay.classList.add('visible');
     setTimeout(() => modalInput.focus(), 50);
   }
@@ -1138,7 +1187,8 @@
 
   modalSave.addEventListener('click', () => {
     if (!pendingCoords) return;
-    const name = modalInput.value.trim() || (pendingType === 'laden' ? 'Neuer Laden' : 'Neuer Automat');
+    const cat = CATEGORIES[pendingType];
+    const name = modalInput.value.trim() || ('Neuer ' + cat.label);
     const note = modalNote.value.trim();
     const custom = loadCustom();
     custom.push({
@@ -1159,34 +1209,58 @@
     if (e.key === 'Escape') closeAddModal();
   });
 
-  // ---- Legende oben im Panel: gleichzeitig Filter für Karte & Suche ----
-  const filterAutomat = document.getElementById('filterAutomat');
-  const filterLaden = document.getElementById('filterLaden');
+  // ---- Filter-Chips auf der Karte (Panel) ----
+  const mapFilterRow = document.getElementById('mapFilterRow');
 
-  function refreshFilterChips() {
-    filterAutomat.classList.toggle('active', activeTypes.has('automat'));
-    filterLaden.classList.toggle('active', activeTypes.has('laden'));
+  function renderMapFilterChips() {
+    mapFilterRow.innerHTML = '';
+    categoryIds().forEach(type => {
+      const cat = CATEGORIES[type];
+      const btn = document.createElement('button');
+      btn.className = 'legend-chip';
+      btn.dataset.categoryType = type;
+      btn.appendChild(buildDot(type));
+      btn.appendChild(document.createTextNode(cat.labelPlural));
+      btn.addEventListener('click', () => toggleType(type, activeTypes, refreshMapFilterChips, true));
+      mapFilterRow.appendChild(btn);
+    });
+    refreshMapFilterChips();
   }
-  refreshFilterChips();
 
-  function toggleType(type) {
-    if (activeTypes.has(type)) {
-      if (activeTypes.size === 1) return; // mindestens ein Typ muss sichtbar bleiben
-      activeTypes.delete(type);
+  function refreshMapFilterChips() {
+    [...mapFilterRow.children].forEach(btn => {
+      const type = btn.dataset.categoryType;
+      const cat = CATEGORIES[type];
+      const isActive = activeTypes.has(type);
+      btn.classList.toggle('active', isActive);
+      btn.style.borderColor = isActive ? cat.color : '';
+      btn.style.color = isActive ? 'var(--text)' : '';
+      btn.style.background = isActive ? cat.color + '15' : 'transparent';
+    });
+  }
+
+  function toggleType(type, set, refreshFn, affectsSearch) {
+    if (set.has(type)) {
+      if (set.size === 1) return; // mindestens eine Kategorie muss sichtbar bleiben
+      set.delete(type);
     } else {
-      activeTypes.add(type);
+      set.add(type);
     }
-    refreshFilterChips();
-    renderMarkers();
-    // Falls gerade eine Route/Ergebnis angezeigt wird, mit der neuen
-    // Filterung neu berechnen (der bisher nächste Punkt könnte jetzt
-    // ausgeblendet sein).
-    if (lastSearch) {
-      findNearestFrom(lastSearch.lat, lastSearch.lng, lastSearch.label);
+    refreshFn();
+    if (affectsSearch) {
+      renderMarkers();
+      // Falls gerade eine Route/Ergebnis angezeigt wird, mit der neuen
+      // Filterung neu berechnen (der bisher nächste Punkt könnte jetzt
+      // ausgeblendet sein).
+      if (lastSearch) {
+        findNearestFrom(lastSearch.lat, lastSearch.lng, lastSearch.label);
+      }
+    } else {
+      renderList(listSearch.value);
     }
   }
-  filterAutomat.addEventListener('click', () => toggleType('automat'));
-  filterLaden.addEventListener('click', () => toggleType('laden'));
+
+  renderMapFilterChips();
 
   // ---- "Liste exportieren" ----
   const exportBtn = document.getElementById('exportBtn');
@@ -1232,12 +1306,41 @@
     resultEl.classList.remove('visible');
   });
 
-  // ---- Standortliste (Suche + Notizen) ----
+  // ---- Standortliste (Suche + eigener Filter, unabhängig von der Karte) ----
   const countPill = document.getElementById('countPill');
   const listOverlay = document.getElementById('listOverlay');
   const listClose = document.getElementById('listClose');
   const listSearch = document.getElementById('listSearch');
   const listItems = document.getElementById('listItems');
+  const listFilterRow = document.getElementById('listFilterRow');
+
+  function renderListFilterChips() {
+    listFilterRow.innerHTML = '';
+    categoryIds().forEach(type => {
+      const cat = CATEGORIES[type];
+      const btn = document.createElement('button');
+      btn.className = 'legend-chip';
+      btn.dataset.categoryType = type;
+      btn.appendChild(buildDot(type));
+      btn.appendChild(document.createTextNode(cat.labelPlural));
+      btn.addEventListener('click', () => toggleType(type, listActiveTypes, refreshListFilterChips, false));
+      listFilterRow.appendChild(btn);
+    });
+    refreshListFilterChips();
+  }
+
+  function refreshListFilterChips() {
+    [...listFilterRow.children].forEach(btn => {
+      const type = btn.dataset.categoryType;
+      const cat = CATEGORIES[type];
+      const isActive = listActiveTypes.has(type);
+      btn.classList.toggle('active', isActive);
+      btn.style.borderColor = isActive ? cat.color : '';
+      btn.style.color = isActive ? 'var(--text)' : '';
+      btn.style.background = isActive ? cat.color + '15' : 'transparent';
+    });
+  }
+  renderListFilterChips();
 
   function openList() {
     listSearch.value = '';
@@ -1253,7 +1356,7 @@
 
   function renderList(query) {
     const q = query.trim().toLowerCase();
-    let items = getVisibleAutomaten();
+    let items = getVisibleAutomaten().filter(a => listActiveTypes.has(a.type));
 
     if (q) {
       items = items.filter(a =>
@@ -1280,12 +1383,11 @@
     }
 
     items.forEach(a => {
+      const cat = CATEGORIES[a.type];
       const el = document.createElement('div');
       el.className = 'list-item';
-      el.dataset.type = a.type;
 
-      const dot = document.createElement('div');
-      dot.className = 'dot';
+      const dot = buildDot(a.type);
 
       const body = document.createElement('div');
       body.className = 'list-item-body';
@@ -1314,7 +1416,7 @@
         closeList();
         if (!activeTypes.has(a.type)) {
           activeTypes.add(a.type);
-          refreshFilterChips();
+          refreshMapFilterChips();
           renderMarkers();
         }
         map.setView([a.lat, a.lng], 17);
