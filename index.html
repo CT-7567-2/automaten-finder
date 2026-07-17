@@ -85,7 +85,9 @@
     border: 1px solid var(--panel-border);
     padding: 5px 10px;
     border-radius: 20px;
+    cursor: pointer;
   }
+  .count-pill:hover { border-color: var(--amber); color: var(--text); }
 
   /* --- Hint bar (shown while picking a point on the map) --- */
   .hint-bar {
@@ -514,6 +516,111 @@
   .modal-btn.save:hover { background: #ffb920; }
   .modal-btn.cancel { background: transparent; border: 1px solid var(--panel-border); color: var(--text); }
   .modal-btn.cancel:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* --- Standortliste --- */
+  .list-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    background: rgba(10,12,14,0.6);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .list-overlay.visible { display: flex; }
+
+  .list-panel {
+    width: 100%;
+    max-width: 480px;
+    height: 78vh;
+    max-height: 640px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px 16px 0 0;
+    padding: 18px 18px 12px;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .list-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .list-title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 17px;
+  }
+  .list-header .result-close { position: static; }
+
+  #listSearch { margin-bottom: 10px; flex-shrink: 0; }
+
+  .list-items {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--panel-border);
+    cursor: pointer;
+  }
+  .list-item:hover { background: rgba(255,255,255,0.03); }
+  .list-item:last-child { border-bottom: none; }
+
+  .list-item .dot {
+    width: 12px;
+    height: 12px;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .list-item[data-type="automat"] .dot {
+    background: var(--amber);
+    border-radius: 2px 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .list-item[data-type="laden"] .dot {
+    background: var(--shop);
+    border-radius: 50%;
+  }
+
+  .list-item-body { flex: 1; min-width: 0; }
+  .list-item-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+  .list-item-note {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .list-item-dist {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--amber);
+    flex-shrink: 0;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  .list-empty {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    padding: 30px 10px;
+  }
 </style>
 </head>
 <body>
@@ -522,7 +629,7 @@
 
 <div class="topbar">
   <div class="brand"><span class="brand-mark"></span>AUTOMAT-FINDER</div>
-  <div class="count-pill" id="countPill">– Standorte</div>
+  <button class="count-pill" id="countPill">– Standorte</button>
 </div>
 
 <div class="hint-bar" id="hintBar">
@@ -569,6 +676,7 @@
       <button class="legend-chip" data-type="laden" id="modalTypeLaden"><span class="dot"></span>Laden</button>
     </div>
     <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
+    <input type="text" class="modal-input" id="modalNote" placeholder="Notiz (optional), z.B. nur EC-Karte" maxlength="120">
     <div class="modal-actions">
       <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
       <button class="modal-btn save" id="modalSave">Speichern</button>
@@ -589,6 +697,17 @@
       <button class="modal-btn cancel" id="exportClose">Schließen</button>
       <button class="modal-btn save" id="exportCopy">In Zwischenablage kopieren</button>
     </div>
+  </div>
+</div>
+
+<div class="list-overlay" id="listOverlay">
+  <div class="list-panel">
+    <div class="list-header">
+      <div class="list-title">Alle Standorte</div>
+      <button class="result-close" id="listClose" aria-label="Schließen">✕</button>
+    </div>
+    <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name oder Notiz …">
+    <div class="list-items" id="listItems"></div>
   </div>
 </div>
 
@@ -645,7 +764,7 @@
     const combined = [...seedAutomaten, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, type: a.type === 'laden' ? 'laden' : 'automat' }));
+      .map(a => ({ ...a, type: a.type === 'laden' ? 'laden' : 'automat', note: a.note || '' }));
   }
 
   let activeTypes = new Set(['automat', 'laden']);
@@ -683,7 +802,8 @@
       const m = L.marker([a.lat, a.lng], { icon: makeDivIcon(iconClass) });
       const popupEl = document.createElement('div');
       popupEl.innerHTML = `<b>${escapeHtml(a.name)}</b>
-        <div class="popup-coords">${a.type === 'laden' ? 'Laden' : 'Automat'} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>`;
+        <div class="popup-coords">${a.type === 'laden' ? 'Laden' : 'Automat'} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
+        ${a.note ? `<div class="popup-coords" style="margin-top:5px;color:var(--text);">${escapeHtml(a.note)}</div>` : ''}`;
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
@@ -733,6 +853,8 @@
 
   let userMarker = null;
   let pointMarker = null;
+  let activeOriginMarker = null; // der Pin, der zum aktuell angezeigten Ergebnis gehört
+  let lastKnownLocation = null; // bleibt auch nach dem Schließen des Ergebnisses erhalten (für Listen-Sortierung)
 
   // ============================================================
   // Haversine-Formel: Distanz zwischen zwei Koordinaten in Metern
@@ -794,6 +916,8 @@
       const { lat, lng } = e.latlng;
       if (pointMarker) map.removeLayer(pointMarker);
       pointMarker = L.marker([lat, lng], { icon: makeDivIcon('point-icon') }).addTo(map);
+      activeOriginMarker = pointMarker;
+      lastKnownLocation = { lat, lng };
       findNearestFrom(lat, lng, 'Nächster ab gewähltem Punkt');
       setMode('idle');
     } else if (mode === 'add-automat') {
@@ -816,6 +940,8 @@
         const { latitude, longitude } = pos.coords;
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.marker([latitude, longitude], { icon: makeDivIcon('user-icon') }).addTo(map);
+        activeOriginMarker = userMarker;
+        lastKnownLocation = { lat: latitude, lng: longitude };
         findNearestFrom(latitude, longitude, 'Nächster Automat');
         locateBtn.disabled = false;
       },
@@ -841,6 +967,12 @@
     errorMsg.classList.remove('visible');
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
     Object.values(markerRefs).forEach(m => m.getElement()?.querySelector('.automat-icon, .laden-icon')?.classList.remove('nearest'));
+    if (activeOriginMarker) {
+      map.removeLayer(activeOriginMarker);
+      if (activeOriginMarker === userMarker) userMarker = null;
+      if (activeOriginMarker === pointMarker) pointMarker = null;
+      activeOriginMarker = null;
+    }
   }
   resultClose.addEventListener('click', clearResult);
 
@@ -925,6 +1057,7 @@
   const modalOverlay = document.getElementById('modalOverlay');
   const modalCoords = document.getElementById('modalCoords');
   const modalInput = document.getElementById('modalInput');
+  const modalNote = document.getElementById('modalNote');
   const modalSave = document.getElementById('modalSave');
   const modalCancel = document.getElementById('modalCancel');
   const modalTypeAutomat = document.getElementById('modalTypeAutomat');
@@ -944,6 +1077,7 @@
     pendingCoords = { lat, lng };
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
+    modalNote.value = '';
     setPendingType('automat');
     modalOverlay.classList.add('visible');
     setTimeout(() => modalInput.focus(), 50);
@@ -965,11 +1099,13 @@
   modalSave.addEventListener('click', () => {
     if (!pendingCoords) return;
     const name = modalInput.value.trim() || (pendingType === 'laden' ? 'Neuer Laden' : 'Neuer Automat');
+    const note = modalNote.value.trim();
     const custom = loadCustom();
     custom.push({
       id: makeId(),
       name,
       type: pendingType,
+      note,
       lat: Math.round(pendingCoords.lat * 100000) / 100000,
       lng: Math.round(pendingCoords.lng * 100000) / 100000
     });
@@ -1014,7 +1150,7 @@
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, type, lat, lng }) => ({ id, name, type, lat, lng }));
+    const list = getVisibleAutomaten().map(({ id, name, type, note, lat, lng }) => ({ id, name, type, note, lat, lng }));
     exportTextarea.value = JSON.stringify(list, null, 2);
     exportOverlay.classList.add('visible');
   });
@@ -1049,6 +1185,101 @@
     renderMarkers();
     resultEl.classList.remove('visible');
   });
+
+  // ---- Standortliste (Suche + Notizen) ----
+  const countPill = document.getElementById('countPill');
+  const listOverlay = document.getElementById('listOverlay');
+  const listClose = document.getElementById('listClose');
+  const listSearch = document.getElementById('listSearch');
+  const listItems = document.getElementById('listItems');
+
+  function openList() {
+    listSearch.value = '';
+    renderList('');
+    listOverlay.classList.add('visible');
+    setTimeout(() => listSearch.focus(), 50);
+  }
+  function closeList() { listOverlay.classList.remove('visible'); }
+
+  countPill.addEventListener('click', openList);
+  listClose.addEventListener('click', closeList);
+  listOverlay.addEventListener('click', e => { if (e.target === listOverlay) closeList(); });
+
+  function renderList(query) {
+    const q = query.trim().toLowerCase();
+    let items = getVisibleAutomaten();
+
+    if (q) {
+      items = items.filter(a =>
+        a.name.toLowerCase().includes(q) || a.note.toLowerCase().includes(q)
+      );
+    }
+
+    if (lastKnownLocation) {
+      items = items
+        .map(a => ({ ...a, _dist: distanceMeters(lastKnownLocation.lat, lastKnownLocation.lng, a.lat, a.lng) }))
+        .sort((a, b) => a._dist - b._dist);
+    } else {
+      items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    }
+
+    listItems.innerHTML = '';
+
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = 'Keine Standorte gefunden.';
+      listItems.appendChild(empty);
+      return;
+    }
+
+    items.forEach(a => {
+      const el = document.createElement('div');
+      el.className = 'list-item';
+      el.dataset.type = a.type;
+
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+
+      const body = document.createElement('div');
+      body.className = 'list-item-body';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'list-item-name';
+      nameEl.textContent = a.name;
+      body.appendChild(nameEl);
+      if (a.note) {
+        const noteEl = document.createElement('div');
+        noteEl.className = 'list-item-note';
+        noteEl.textContent = a.note;
+        body.appendChild(noteEl);
+      }
+
+      el.appendChild(dot);
+      el.appendChild(body);
+
+      if (a._dist !== undefined) {
+        const distEl = document.createElement('div');
+        distEl.className = 'list-item-dist';
+        distEl.textContent = a._dist < 1000 ? Math.round(a._dist) + ' m' : (a._dist / 1000).toFixed(1) + ' km';
+        el.appendChild(distEl);
+      }
+
+      el.addEventListener('click', () => {
+        closeList();
+        if (!activeTypes.has(a.type)) {
+          activeTypes.add(a.type);
+          refreshFilterChips();
+          renderMarkers();
+        }
+        map.setView([a.lat, a.lng], 17);
+        markerRefs[a.id]?.openPopup();
+      });
+
+      listItems.appendChild(el);
+    });
+  }
+
+  listSearch.addEventListener('input', () => renderList(listSearch.value));
 
 </script>
 
