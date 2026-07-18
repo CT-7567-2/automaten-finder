@@ -451,6 +451,26 @@
   .status-dot.open { background: var(--open-color); }
   .status-dot.closed { background: var(--closed-color); }
   .status-dot.always { background: var(--text-dim); }
+
+  .hours-full-list {
+    margin-top: 2px;
+    padding-top: 4px;
+    border-top: 1px solid var(--panel-border);
+  }
+  .hours-full-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11.5px;
+    padding: 2px 0;
+  }
+  .hours-full-row.today .hours-full-day,
+  .hours-full-row.today .hours-full-val {
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .hours-full-day { color: var(--text-dim); flex-shrink: 0; width: 24px; }
+  .hours-full-val { text-align: right; color: var(--text); }
   .popup-actions {
     display: flex;
     gap: 6px;
@@ -984,6 +1004,53 @@
     return 'Heute ' + ranges.map(([o, c]) => `${o}–${c}`).join(', ');
   }
 
+  // Baut eine ausklappbare, komplette Wochenübersicht der Öffnungszeiten
+  // für das Popup. Heutiger Tag wird hervorgehoben.
+  function buildFullHoursEl(loc) {
+    const wrap = document.createElement('div');
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'hours-toggle-link';
+    toggle.style.padding = '2px 0 4px';
+    toggle.textContent = '+ Alle Öffnungszeiten';
+
+    const list = document.createElement('div');
+    list.className = 'hours-full-list';
+    list.style.display = 'none';
+
+    const todayCode = JS_DAY_TO_CODE[new Date().getDay()];
+    WEEKDAYS.forEach(day => {
+      const ranges = (loc.hours && loc.hours[day.code]) || [];
+      const row = document.createElement('div');
+      row.className = 'hours-full-row';
+      if (day.code === todayCode) row.classList.add('today');
+
+      const label = document.createElement('span');
+      label.className = 'hours-full-day';
+      label.textContent = day.label;
+
+      const val = document.createElement('span');
+      val.className = 'hours-full-val';
+      val.textContent = ranges.length ? ranges.map(([o, c]) => `${o}–${c}`).join(', ') : 'geschlossen';
+      if (!ranges.length) val.style.color = 'var(--closed-color)';
+
+      row.appendChild(label);
+      row.appendChild(val);
+      list.appendChild(row);
+    });
+
+    toggle.addEventListener('click', () => {
+      const nowVisible = list.style.display !== 'none';
+      list.style.display = nowVisible ? 'none' : 'block';
+      toggle.textContent = nowVisible ? '+ Alle Öffnungszeiten' : '– Öffnungszeiten ausblenden';
+    });
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(list);
+    return wrap;
+  }
+
   // Filter für die KARTE (steuert auch die Nächster-Standort-Suche)
   let activeTypes = new Set();
   let mapOpenOnly = false;
@@ -1069,6 +1136,10 @@
       statusLine.appendChild(statusDot);
       statusLine.appendChild(statusText);
       popupEl.appendChild(statusLine);
+
+      if (a.hours) {
+        popupEl.appendChild(buildFullHoursEl(a));
+      }
 
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
