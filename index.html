@@ -780,6 +780,7 @@
     <div class="modal-title">Neuer Standort</div>
     <div class="modal-coords" id="modalCoords">–</div>
     <div class="legend-row" id="modalTypeRow" style="margin-top:2px;"></div>
+    <div class="hours-hint" style="margin:-8px 0 12px;">Mehrfachauswahl möglich, z.B. Laden mit Automat davor.</div>
     <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
     <input type="text" class="modal-input" id="modalNote" placeholder="Notiz (optional), z.B. nur EC-Karte" maxlength="120">
 
@@ -849,6 +850,32 @@
     return Object.keys(CATEGORIES);
   }
 
+  // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
+  // Kategorien, z.B. "laden,automat") in ein Array gültiger Kategorie-IDs
+  // um. Unbekannte/leere Werte fallen auf DEFAULT_CATEGORY zurück.
+  function parseTypes(typeField) {
+    const raw = Array.isArray(typeField)
+      ? typeField
+      : String(typeField || '').split(',');
+    const valid = raw.map(s => String(s).trim()).filter(t => CATEGORIES[t]);
+    return valid.length ? [...new Set(valid)] : [DEFAULT_CATEGORY];
+  }
+
+  // Liefert die Hintergrundfarbe/-füllung für einen Marker/Punkt: bei
+  // genau einer Kategorie die einfache Farbe, bei mehreren ein
+  // Tortendiagramm-artiger Farbverlauf (ein Segment je Kategorie).
+  function categoryBackground(types) {
+    if (types.length <= 1) return CATEGORIES[categoryOf(types[0])].color;
+    const n = types.length;
+    const stops = types.map((t, i) => {
+      const color = CATEGORIES[categoryOf(t)].color;
+      const from = Math.round((i / n) * 360);
+      const to = Math.round(((i + 1) / n) * 360);
+      return `${color} ${from}deg ${to}deg`;
+    }).join(', ');
+    return `conic-gradient(${stops})`;
+  }
+
   // ---- Konfiguration (wird aus config.json geladen) ----
   let RADIUS_OPTIONS = [
     { value: null, label: 'Alle' },
@@ -881,6 +908,13 @@
   // aktuellen Stand kopieren und in automaten.json bei GitHub
   // einfügen.
   //
+  // "type": eine Kategorie-ID aus categories.json, oder MEHRERE durch
+  // Komma getrennt, falls an einem Standort mehrere Dinge zu finden
+  // sind, z.B. "type": "laden,automat" für einen Kiosk mit Automat
+  // davor. Bestehende Einträge mit nur einer Kategorie brauchen dafür
+  // nichts geändert zu werden. Auf der Karte/in der Liste erscheint
+  // so ein Standort dann als Kreis mit einem Farbsegment je Kategorie.
+  //
   // Optionales Feld "hours" für Öffnungszeiten, Format:
   //   "hours": {
   //     "mo": [["08:00","20:00"]],
@@ -890,7 +924,8 @@
   //   }
   // Tage ohne Eintrag gelten als geschlossen. Fehlt "hours" komplett,
   // gilt der Standort als durchgehend (24/7) geöffnet — praktisch für
-  // Automaten, die nie schließen.
+  // Automaten, die nie schließen. Die Öffnungszeiten gelten dabei für
+  // den gesamten Standort (nicht separat je Kategorie).
   // ============================================================
   let seedAutomaten = [];
   let fileIds = new Set();
@@ -918,7 +953,7 @@
     const combined = [...seedAutomaten, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, type: categoryOf(a.type), note: a.note || '', hours: a.hours || null }));
+      .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null }));
   }
 
   // ---- Öffnungszeiten-Logik ----
@@ -977,23 +1012,26 @@
     return CATEGORIES[categoryOf(type)].shape === 'circle' ? 'shape-circle' : 'shape-diamond';
   }
 
-  function makeCategoryIcon(type, dimmed) {
-    const cat = CATEGORIES[categoryOf(type)];
+  function makeCategoryIcon(types, dimmed) {
     const dimStyle = dimmed ? 'opacity:0.4;' : '';
-    const html = `<div class="marker-dot ${shapeClass(type)}" style="background:${cat.color};${dimStyle}"></div>`;
+    // Bei mehreren Kategorien immer ein Kreis (das Tortendiagramm-Muster
+    // ergibt bei einer Raute keinen Sinn), bei genau einer die reguläre
+    // Form dieser Kategorie.
+    const shape = types.length > 1 ? 'shape-circle' : shapeClass(types[0]);
+    const html = `<div class="marker-dot ${shape}" style="background:${categoryBackground(types)};${dimStyle}"></div>`;
     return makeDivIcon(html, [22, 22]);
   }
 
-  function applyNearestState(dotEl, type, isNearest) {
+  function applyNearestState(dotEl, types, isNearest) {
     if (!dotEl) return;
-    const cat = CATEGORIES[categoryOf(type)];
+    const primary = CATEGORIES[categoryOf(types[0])];
     if (isNearest) {
       dotEl.classList.add('nearest');
       dotEl.style.background = '#ffffff';
-      dotEl.style.borderColor = cat.color;
+      dotEl.style.borderColor = primary.color;
     } else {
       dotEl.classList.remove('nearest');
-      dotEl.style.background = cat.color;
+      dotEl.style.background = categoryBackground(types);
       dotEl.style.borderColor = '#14171a';
     }
   }
@@ -1005,19 +1043,19 @@
     markerLayer.clearLayers();
     markerRefs = {};
     const all = getVisibleAutomaten();
-    const list = all.filter(a => activeTypes.has(a.type) && (!mapOpenOnly || isOpenNow(a)));
+    const list = all.filter(a => a.types.some(t => activeTypes.has(t)) && (!mapOpenOnly || isOpenNow(a)));
     document.getElementById('countPill').textContent =
       all.length + (all.length === 1 ? ' Standort' : ' Standorte');
 
     list.forEach(a => {
-      const cat = CATEGORIES[a.type];
       const open = isOpenNow(a);
-      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.type, a.hours && !open) });
-      m._categoryType = a.type;
+      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.types, a.hours && !open) });
+      m._categoryTypes = a.types;
 
       const popupEl = document.createElement('div');
+      const typeLabel = a.types.map(t => CATEGORIES[categoryOf(t)].label).join(', ');
       popupEl.innerHTML = `<b>${escapeHtml(a.name)}</b>
-        <div class="popup-coords">${escapeHtml(cat.label)} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
+        <div class="popup-coords">${escapeHtml(typeLabel)} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
         ${a.note ? `<div class="popup-coords" style="margin-top:5px;color:var(--text);">${escapeHtml(a.note)}</div>` : ''}`;
 
       const statusLine = document.createElement('div');
@@ -1263,7 +1301,7 @@
     errorMsg.classList.remove('visible');
     lastSearch = null;
     if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryType, false));
+    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryTypes, false));
     if (activeOriginMarker) {
       map.removeLayer(activeOriginMarker);
       if (activeOriginMarker === userMarker) userMarker = null;
@@ -1277,8 +1315,8 @@
 
   function findNearestFrom(fromLat, fromLng, label) {
     lastSearch = { lat: fromLat, lng: fromLng, label };
-    const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type) && (!mapOpenOnly || isOpenNow(a)));
-    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryType, false));
+    const list = getVisibleAutomaten().filter(a => a.types.some(t => activeTypes.has(t)) && (!mapOpenOnly || isOpenNow(a)));
+    Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryTypes, false));
 
     let nearest = null;
     let nearestDist = Infinity;
@@ -1293,7 +1331,7 @@
     }
 
     const nm = markerRefs[nearest.id];
-    applyNearestState(nm?.getElement()?.querySelector('.marker-dot'), nearest.type, true);
+    applyNearestState(nm?.getElement()?.querySelector('.marker-dot'), nearest.types, true);
 
     const bounds = L.latLngBounds([fromLat, fromLng], [nearest.lat, nearest.lng]);
     map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
@@ -1357,7 +1395,7 @@
   const hoursEditor = document.getElementById('hoursEditor');
   const hoursDayRows = document.getElementById('hoursDayRows');
   let pendingCoords = null;
-  let pendingType = DEFAULT_CATEGORY;
+  let pendingTypes = new Set([DEFAULT_CATEGORY]);
 
   function buildDot(type) {
     const cat = CATEGORIES[categoryOf(type)];
@@ -1376,7 +1414,7 @@
       btn.type = 'button';
       btn.appendChild(buildDot(type));
       btn.appendChild(document.createTextNode(cat.label));
-      btn.addEventListener('click', () => setPendingType(type));
+      btn.addEventListener('click', () => toggleModalType(type));
       btn.dataset.categoryType = type;
       modalTypeRow.appendChild(btn);
     });
@@ -1385,7 +1423,7 @@
 
   function refreshModalTypeChips() {
     [...modalTypeRow.children].forEach(btn => {
-      const isActive = btn.dataset.categoryType === pendingType;
+      const isActive = pendingTypes.has(btn.dataset.categoryType);
       const cat = CATEGORIES[btn.dataset.categoryType];
       btn.classList.toggle('active', isActive);
       btn.style.borderColor = isActive ? cat.color : '';
@@ -1394,8 +1432,15 @@
     });
   }
 
-  function setPendingType(type) {
-    pendingType = type;
+  // Mehrfachauswahl: mind. eine Kategorie muss aktiv bleiben, sonst
+  // toggeln wie bei den Filter-Chips.
+  function toggleModalType(type) {
+    if (pendingTypes.has(type)) {
+      if (pendingTypes.size === 1) return;
+      pendingTypes.delete(type);
+    } else {
+      pendingTypes.add(type);
+    }
     refreshModalTypeChips();
   }
 
@@ -1485,8 +1530,8 @@
     modalInput.value = '';
     modalNote.value = '';
     resetHoursEditor();
+    pendingTypes = new Set([DEFAULT_CATEGORY]);
     renderModalTypeChips();
-    setPendingType(DEFAULT_CATEGORY);
     modalOverlay.classList.add('visible');
     setTimeout(() => modalInput.focus(), 50);
   }
@@ -1506,15 +1551,15 @@
 
   modalSave.addEventListener('click', () => {
     if (!pendingCoords) return;
-    const cat = CATEGORIES[pendingType];
-    const name = modalInput.value.trim() || ('Neuer ' + cat.label);
+    const typesArr = [...pendingTypes];
+    const name = modalInput.value.trim() || ('Neuer ' + CATEGORIES[typesArr[0]].label);
     const note = modalNote.value.trim();
     const hours = collectHoursFromEditor();
     const custom = loadCustom();
     const entry = {
       id: makeId(),
       name,
-      type: pendingType,
+      type: typesArr.join(','),
       note,
       lat: Math.round(pendingCoords.lat * 100000) / 100000,
       lng: Math.round(pendingCoords.lng * 100000) / 100000
@@ -1597,8 +1642,8 @@
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, type, note, hours, lat, lng }) => {
-      const entry = { id, name, type, note, lat, lng };
+    const list = getVisibleAutomaten().map(({ id, name, types, note, hours, lat, lng }) => {
+      const entry = { id, name, type: types.join(','), note, lat, lng };
       if (hours) entry.hours = hours;
       return entry;
     });
@@ -1748,7 +1793,7 @@
   function renderList(query) {
     const q = query.trim().toLowerCase();
     let items = getVisibleAutomaten().filter(a =>
-      listActiveTypes.has(a.type) && (!listOpenOnly || isOpenNow(a))
+      a.types.some(t => listActiveTypes.has(t)) && (!listOpenOnly || isOpenNow(a))
     );
 
     if (q) {
@@ -1781,12 +1826,13 @@
     }
 
     items.forEach(a => {
-      const cat = CATEGORIES[a.type];
       const open = isOpenNow(a);
       const el = document.createElement('div');
       el.className = 'list-item';
 
-      const dot = buildDot(a.type);
+      const dot = document.createElement('span');
+      dot.className = 'dot ' + (a.types.length > 1 ? 'shape-circle' : shapeClass(a.types[0]));
+      dot.style.background = categoryBackground(a.types);
       if (a.hours && !open) dot.style.opacity = '0.4';
 
       const body = document.createElement('div');
@@ -1821,8 +1867,9 @@
 
       el.addEventListener('click', () => {
         closeList();
-        if (!activeTypes.has(a.type)) {
-          activeTypes.add(a.type);
+        const missing = a.types.filter(t => !activeTypes.has(t));
+        if (missing.length) {
+          missing.forEach(t => activeTypes.add(t));
           refreshMapFilterChips();
           renderMarkers();
         }
