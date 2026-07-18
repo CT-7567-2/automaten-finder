@@ -1,0 +1,29 @@
+{
+  "map": {
+    "defaultZoom": 14,
+    "defaultCenter": { "lat": 52.5200, "lng": 13.4040 }
+  },
+
+  "radiusOptions": [
+    { "value": null, "label": "Alle" },
+    { "value": 250,  "label": "250 m" },
+    { "value": 500,  "label": "500 m" },
+    { "value": 1000, "label": "1 km" },
+    { "value": 2000, "label": "2 km" }
+  ],
+
+  "texts": {
+    "appTitle": "AUTOMAT-FINDER",
+    "modeLocate": "Mein Standort",
+    "modePoint": "Punkt auf Karte wählen",
+    "modeAdd": "Standort hinzufügen",
+    "exportLabel": "Liste exportieren (für alle übernehmen)",
+    "resetLabel": "Lokale Änderungen zurücksetzen",
+    "listTitle": "Alle Standorte",
+    "searchPlaceholder": "Suche nach Name oder Notiz …",
+    "openToggleLabel": "Nur jetzt geöffnete",
+    "statusOpenLabel": "Geöffnet",
+    "statusClosedLabel": "Geschlossen",
+    "statusAlwaysLabel": "Durchgehend geöffnet"
+  }
+}

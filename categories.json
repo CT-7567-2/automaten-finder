@@ -1,0 +1,7 @@
+{
+  "defaultCategory": "automat",
+  "categories": {
+    "automat": { "label": "Automat", "labelPlural": "Automaten", "color": "#f2a900", "shape": "diamond" },
+    "laden":   { "label": "Laden",   "labelPlural": "Läden",      "color": "#3fc79a", "shape": "circle"  }
+  }
+}

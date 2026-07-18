@@ -21,6 +21,8 @@
     --danger: #e15554;
     --point: #7c9cff;
     --walk-color: #3fc79a;
+    --open-color: #3fc79a;
+    --closed-color: #e15554;
   }
 
   * { box-sizing: border-box; }
@@ -132,6 +134,8 @@
     border-radius: 14px;
     padding: 16px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
   }
 
   .mode-row {
@@ -173,6 +177,37 @@
   }
   .legend-chip .dot.shape-circle { border-radius: 50%; }
   .legend-chip .dot.shape-diamond { border-radius: 2px 2px 2px 0; transform: rotate(45deg); }
+
+  /* --- Boolescher Umschalt-Button (z.B. "Nur jetzt geöffnete") --- */
+  .toggle-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .toggle-btn .dot-indicator {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .toggle-btn.active {
+    border-color: var(--open-color);
+    color: var(--text);
+    background: rgba(63,199,154,0.08);
+  }
+  .toggle-btn.active .dot-indicator { background: var(--open-color); }
 
   .mode-btn {
     flex: 1;
@@ -351,6 +386,9 @@
   .marker-dot.nearest {
     animation: pulse-generic 1.4s ease-in-out infinite;
   }
+  .marker-dot.is-closed {
+    opacity: 0.4;
+  }
   @keyframes pulse-generic {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.55); }
     50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
@@ -397,6 +435,22 @@
     font-size: 11px;
     margin-top: 3px;
   }
+  .status-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.open { background: var(--open-color); }
+  .status-dot.closed { background: var(--closed-color); }
+  .status-dot.always { background: var(--text-dim); }
   .popup-actions {
     display: flex;
     gap: 6px;
@@ -449,6 +503,8 @@
   .modal-box {
     width: 100%;
     max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
     background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 16px 16px 0 0;
@@ -497,6 +553,58 @@
   .modal-btn.cancel { background: transparent; border: 1px solid var(--panel-border); color: var(--text); }
   .modal-btn.cancel:hover { border-color: var(--danger); color: var(--danger); }
 
+  /* --- Öffnungszeiten-Editor im Hinzufügen-Modal --- */
+  .hours-toggle-link {
+    display: inline-block;
+    background: transparent;
+    border: none;
+    color: var(--point);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0 12px;
+  }
+  .hours-editor {
+    display: none;
+    margin-bottom: 12px;
+    border: 1px solid var(--panel-border);
+    border-radius: 9px;
+    padding: 10px;
+  }
+  .hours-editor.visible { display: block; }
+  .hours-day-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+  }
+  .hours-day-row + .hours-day-row { border-top: 1px solid var(--panel-border); }
+  .hours-day-label {
+    width: 30px;
+    flex-shrink: 0;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+  .hours-day-row input[type="checkbox"] { flex-shrink: 0; accent-color: var(--amber); }
+  .hours-day-row input[type="time"] {
+    background: #14171a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 5px 6px;
+    border-radius: 6px;
+    width: 88px;
+  }
+  .hours-day-row input[type="time"]:disabled { opacity: 0.35; }
+  .hours-day-sep { color: var(--text-dim); font-size: 12px; }
+  .hours-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
   /* --- Standortliste --- */
   .list-overlay {
     position: absolute;
@@ -512,8 +620,8 @@
   .list-panel {
     width: 100%;
     max-width: 480px;
-    height: 82vh;
-    max-height: 680px;
+    height: 84vh;
+    max-height: 700px;
     background: var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: 16px 16px 0 0;
@@ -539,6 +647,34 @@
 
   #listSearch { margin-bottom: 10px; flex-shrink: 0; }
   #listFilterRow { flex-shrink: 0; }
+  #listOpenToggle { flex-shrink: 0; }
+
+  .radius-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .radius-chip {
+    flex: 1;
+    min-width: 56px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 6px 4px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .radius-chip.active {
+    border-color: var(--point);
+    color: var(--text);
+    background: rgba(124,156,255,0.1);
+  }
 
   .list-items {
     flex: 1;
@@ -602,7 +738,7 @@
 <div id="map"></div>
 
 <div class="topbar">
-  <div class="brand"><span class="brand-mark"></span>AUTOMAT-FINDER</div>
+  <div class="brand"><span class="brand-mark"></span><span id="brandTitle">AUTOMAT-FINDER</span></div>
   <button class="count-pill" id="countPill">– Standorte</button>
 </div>
 
@@ -613,6 +749,7 @@
 
 <div class="panel">
   <div class="legend-row" id="mapFilterRow"></div>
+  <button class="toggle-btn" id="mapOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
   <div class="mode-row">
     <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
@@ -645,6 +782,13 @@
     <div class="legend-row" id="modalTypeRow" style="margin-top:2px;"></div>
     <input type="text" class="modal-input" id="modalInput" placeholder="Name, z.B. Automat Parkstraße" maxlength="60">
     <input type="text" class="modal-input" id="modalNote" placeholder="Notiz (optional), z.B. nur EC-Karte" maxlength="120">
+
+    <button type="button" class="hours-toggle-link" id="hoursToggleLink">+ Öffnungszeiten (optional)</button>
+    <div class="hours-editor" id="hoursEditor">
+      <div id="hoursDayRows"></div>
+      <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet.</div>
+    </div>
+
     <div class="modal-actions">
       <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
       <button class="modal-btn save" id="modalSave">Speichern</button>
@@ -671,11 +815,13 @@
 <div class="list-overlay" id="listOverlay">
   <div class="list-panel">
     <div class="list-header">
-      <div class="list-title">Alle Standorte</div>
+      <div class="list-title" id="listTitle">Alle Standorte</div>
       <button class="result-close" id="listClose" aria-label="Schließen">✕</button>
     </div>
     <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name oder Notiz …">
     <div class="legend-row" id="listFilterRow"></div>
+    <button class="toggle-btn" id="listOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
+    <div class="radius-row" id="listRadiusRow"></div>
     <div class="list-items" id="listItems"></div>
   </div>
 </div>
@@ -684,35 +830,18 @@
 <script>
 
   // ============================================================
-  // KATEGORIEN
-  // ------------------------------------------------------------
-  // Hier legst du fest, welche Arten von Standorten es gibt.
-  // Alles andere (Farben auf der Karte, Filter-Chips bei der Karte
-  // UND in der Liste, Auswahl im "Hinzufügen"-Dialog) wird
-  // automatisch aus dieser Liste erzeugt — du musst sonst nirgends
-  // im Code etwas ändern.
-  //
-  // Eine Kategorie hinzufügen: einfach einen neuen Eintrag ergänzen,
-  // z.B.:
-  //   kiosk: { label: 'Kiosk', labelPlural: 'Kioske', color: '#7c9cff', shape: 'circle' }
-  //
-  // Eine Kategorie entfernen: den Eintrag einfach löschen. Bestehende
-  // Standorte in automaten.json, die diesen "type" noch verwenden,
-  // fallen automatisch auf DEFAULT_CATEGORY zurück (siehe unten) statt
-  // zu verschwinden oder einen Fehler zu verursachen.
-  //
-  // Felder je Kategorie:
-  //   label        - Singular, z.B. im Popup ("Automat · 52.5, 13.4")
-  //   labelPlural   - Plural, z.B. auf den Filter-Chips ("Automaten")
-  //   color        - Hex-Farbcode für Pin & Filter-Punkt
-  //   shape        - 'diamond' (Raute) oder 'circle' (Kreis)
+  // AUSGELAGERTE DATEIEN — hier bearbeiten, nicht in dieser Datei:
+  //   categories.json  - Welche Kategorien (Automat/Laden/...) es gibt
+  //   config.json      - Karten-Standardansicht, Umkreis-Stufen, Texte
+  //   automaten.json   - Die eigentlichen Standorte
   // ============================================================
-  const CATEGORIES = {
-    automat: { label: 'Automat', labelPlural: 'Automaten', color: '#f2a900', shape: 'diamond' },
-    laden:   { label: 'Laden',   labelPlural: 'Läden',      color: '#3fc79a', shape: 'circle'  }
-  };
-  const DEFAULT_CATEGORY = 'automat';
 
+  // ---- Kategorien (werden aus categories.json geladen) ----
+  let CATEGORIES = {};
+  let DEFAULT_CATEGORY = 'automat';
+  const FALLBACK_CATEGORIES = {
+    automat: { label: 'Automat', labelPlural: 'Automaten', color: '#f2a900', shape: 'diamond' }
+  };
   function categoryOf(type) {
     return CATEGORIES[type] ? type : DEFAULT_CATEGORY;
   }
@@ -720,32 +849,51 @@
     return Object.keys(CATEGORIES);
   }
 
+  // ---- Konfiguration (wird aus config.json geladen) ----
+  let RADIUS_OPTIONS = [
+    { value: null, label: 'Alle' },
+    { value: 250,  label: '250 m' },
+    { value: 500,  label: '500 m' },
+    { value: 1000, label: '1 km' },
+    { value: 2000, label: '2 km' }
+  ];
+  let CONFIG = {
+    map: { defaultZoom: 14, defaultCenter: { lat: 52.5200, lng: 13.4040 } },
+    texts: {}
+  };
+
+  // ---- Wochentage für Öffnungszeiten (deutsche Kürzel) ----
+  const WEEKDAYS = [
+    { code: 'mo', label: 'Mo' },
+    { code: 'di', label: 'Di' },
+    { code: 'mi', label: 'Mi' },
+    { code: 'do', label: 'Do' },
+    { code: 'fr', label: 'Fr' },
+    { code: 'sa', label: 'Sa' },
+    { code: 'so', label: 'So' }
+  ];
+  const JS_DAY_TO_CODE = ['so', 'mo', 'di', 'mi', 'do', 'fr', 'sa']; // Date.getDay(): 0=Sonntag
+
   // ============================================================
   // STANDORTE: Der gemeinsame Startbestand steht in automaten.json
-  // (liegt im selben Ordner wie diese Datei) und wird beim Laden
-  // per fetch() abgerufen. Wer die Liste für alle aktualisieren
-  // will: über "Liste exportieren" den aktuellen Stand kopieren
-  // und in automaten.json bei GitHub einfügen (siehe Anleitung
-  // im Export-Fenster der App).
+  // und wird beim Laden per fetch() abgerufen. Wer die Liste für
+  // alle aktualisieren will: über "Liste exportieren" den
+  // aktuellen Stand kopieren und in automaten.json bei GitHub
+  // einfügen.
   //
-  // Wichtig beim manuellen Bearbeiten von automaten.json:
-  // Jede "id" muss innerhalb der Datei einmalig sein (beliebiger
-  // Text, z.B. "1", "bahnhof" o.ä.) und sollte über die Zeit
-  // stabil bleiben – nicht für einen anderen Standort wiederver-
-  // wenden, sonst können alte "gelöscht"-Markierungen im Browser
-  // eines Freundes versehentlich den falschen (neuen) Automaten
-  // treffen.
-  //
-  // "type": einer der Schlüssel aus CATEGORIES oben (z.B. "automat"
-  // oder "laden"). Fehlt das Feld oder ist der Wert unbekannt, wird
-  // DEFAULT_CATEGORY angenommen.
-  //
-  // Zusätzlich lokal hinzugefügte / gelöschte Standorte werden nur
-  // im eigenen Browser gespeichert (localStorage), bis sie jemand
-  // per Export in automaten.json übernimmt.
+  // Optionales Feld "hours" für Öffnungszeiten, Format:
+  //   "hours": {
+  //     "mo": [["08:00","20:00"]],
+  //     "di": [["08:00","20:00"]],
+  //     ...
+  //     "so": []   // leer = an diesem Tag geschlossen
+  //   }
+  // Tage ohne Eintrag gelten als geschlossen. Fehlt "hours" komplett,
+  // gilt der Standort als durchgehend (24/7) geöffnet — praktisch für
+  // Automaten, die nie schließen.
   // ============================================================
   let seedAutomaten = [];
-  let fileIds = new Set(); // IDs, die tatsächlich aus automaten.json stammen
+  let fileIds = new Set();
 
   const STORAGE_CUSTOM = 'automatfinder_custom';
   const STORAGE_DELETED = 'automatfinder_deleted';
@@ -770,19 +918,49 @@
     const combined = [...seedAutomaten, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, type: categoryOf(a.type), note: a.note || '' }));
+      .map(a => ({ ...a, type: categoryOf(a.type), note: a.note || '', hours: a.hours || null }));
+  }
+
+  // ---- Öffnungszeiten-Logik ----
+  function isOpenNow(loc) {
+    if (!loc.hours) return true; // keine Angabe = immer geöffnet
+    const now = new Date();
+    const dayCode = JS_DAY_TO_CODE[now.getDay()];
+    const ranges = loc.hours[dayCode] || [];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return ranges.some(([open, close]) => {
+      const [oh, om] = open.split(':').map(Number);
+      const [ch, cm] = close.split(':').map(Number);
+      const openMin = oh * 60 + om;
+      const closeMin = ch * 60 + cm;
+      if (closeMin <= openMin) {
+        // über Mitternacht hinaus geöffnet (z.B. 20:00–02:00)
+        return nowMin >= openMin || nowMin < closeMin;
+      }
+      return nowMin >= openMin && nowMin < closeMin;
+    });
+  }
+
+  function todayHoursText(loc) {
+    if (!loc.hours) return CONFIG.texts.statusAlwaysLabel || 'Durchgehend geöffnet';
+    const dayCode = JS_DAY_TO_CODE[new Date().getDay()];
+    const ranges = loc.hours[dayCode] || [];
+    if (!ranges.length) return 'Heute geschlossen';
+    return 'Heute ' + ranges.map(([o, c]) => `${o}–${c}`).join(', ');
   }
 
   // Filter für die KARTE (steuert auch die Nächster-Standort-Suche)
-  let activeTypes = new Set(categoryIds());
-  // Unabhängiger Filter für die LISTE
-  let listActiveTypes = new Set(categoryIds());
+  let activeTypes = new Set();
+  let mapOpenOnly = false;
+  // Unabhängige Filter für die LISTE
+  let listActiveTypes = new Set();
+  let listOpenOnly = false;
 
   // ============================================================
-  // Karte initialisieren
+  // Karte initialisieren (vorläufige Ansicht, bis config.json geladen ist)
   // ============================================================
   const mapEl = document.getElementById('map');
-  const map = L.map('map', { zoomControl: false }).setView([52.5200, 13.4040], 14);
+  const map = L.map('map', { zoomControl: false }).setView([51.1657, 10.4515], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -799,9 +977,10 @@
     return CATEGORIES[categoryOf(type)].shape === 'circle' ? 'shape-circle' : 'shape-diamond';
   }
 
-  function makeCategoryIcon(type) {
+  function makeCategoryIcon(type, dimmed) {
     const cat = CATEGORIES[categoryOf(type)];
-    const html = `<div class="marker-dot ${shapeClass(type)}" style="background:${cat.color};"></div>`;
+    const dimStyle = dimmed ? 'opacity:0.4;' : '';
+    const html = `<div class="marker-dot ${shapeClass(type)}" style="background:${cat.color};${dimStyle}"></div>`;
     return makeDivIcon(html, [22, 22]);
   }
 
@@ -820,19 +999,20 @@
   }
 
   const markerLayer = L.layerGroup().addTo(map);
-  let markerRefs = {}; // id -> leaflet marker
+  let markerRefs = {};
 
   function renderMarkers() {
     markerLayer.clearLayers();
     markerRefs = {};
     const all = getVisibleAutomaten();
-    const list = all.filter(a => activeTypes.has(a.type));
+    const list = all.filter(a => activeTypes.has(a.type) && (!mapOpenOnly || isOpenNow(a)));
     document.getElementById('countPill').textContent =
       all.length + (all.length === 1 ? ' Standort' : ' Standorte');
 
     list.forEach(a => {
       const cat = CATEGORIES[a.type];
-      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.type) });
+      const open = isOpenNow(a);
+      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.type, a.hours && !open) });
       m._categoryType = a.type;
 
       const popupEl = document.createElement('div');
@@ -840,14 +1020,23 @@
         <div class="popup-coords">${escapeHtml(cat.label)} · ${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}</div>
         ${a.note ? `<div class="popup-coords" style="margin-top:5px;color:var(--text);">${escapeHtml(a.note)}</div>` : ''}`;
 
+      const statusLine = document.createElement('div');
+      statusLine.className = 'status-line';
+      const statusDot = document.createElement('span');
+      statusDot.className = 'status-dot ' + (a.hours ? (open ? 'open' : 'closed') : 'always');
+      const statusText = document.createElement('span');
+      statusText.textContent = a.hours
+        ? (open ? (CONFIG.texts.statusOpenLabel || 'Geöffnet') : (CONFIG.texts.statusClosedLabel || 'Geschlossen')) + ' · ' + todayHoursText(a)
+        : (CONFIG.texts.statusAlwaysLabel || 'Durchgehend geöffnet');
+      statusLine.appendChild(statusDot);
+      statusLine.appendChild(statusText);
+      popupEl.appendChild(statusLine);
+
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
       delBtn.addEventListener('click', () => deleteAutomat(a.id));
 
-      // Bewusst OHNE origin-Parameter: dadurch fragt Google Maps selbst
-      // nach dem aktuellen Standort (bzw. nutzt ihn direkt), ohne dass
-      // diese Webseite dafür Standortzugriff braucht.
       const routeLink = document.createElement('a');
       routeLink.className = 'popup-route-link';
       routeLink.href = `https://www.google.com/maps/dir/?api=1&destination=${a.lat},${a.lng}&travelmode=walking`;
@@ -886,7 +1075,67 @@
     resultEl.classList.remove('visible');
   }
 
+  function applyTexts() {
+    const t = CONFIG.texts || {};
+    if (t.appTitle) document.getElementById('brandTitle').textContent = t.appTitle;
+    if (t.modeLocate) locateBtn.innerHTML = t.modeLocate.replace(' ', '<br>');
+    if (t.modePoint) pointBtn.innerHTML = t.modePoint.replace(' auf ', ' auf<br>');
+    if (t.modeAdd) addBtn.innerHTML = t.modeAdd.replace(' ', '<br>');
+    if (t.exportLabel) exportBtn.textContent = t.exportLabel;
+    if (t.resetLabel) resetBtn.textContent = t.resetLabel;
+    if (t.listTitle) document.getElementById('listTitle').textContent = t.listTitle;
+    if (t.searchPlaceholder) listSearch.placeholder = t.searchPlaceholder;
+    if (t.openToggleLabel) {
+      document.querySelectorAll('#mapOpenToggle .toggle-label, #listOpenToggle .toggle-label')
+        .forEach(el => el.textContent = t.openToggleLabel);
+    }
+  }
+
   async function init() {
+    // 1) Kategorien laden
+    try {
+      const catRes = await fetch('./categories.json', { cache: 'no-store' });
+      if (!catRes.ok) throw new Error('HTTP ' + catRes.status);
+      const catData = await catRes.json();
+      CATEGORIES = catData.categories || {};
+      DEFAULT_CATEGORY = catData.defaultCategory && CATEGORIES[catData.defaultCategory]
+        ? catData.defaultCategory
+        : Object.keys(CATEGORIES)[0];
+      if (!Object.keys(CATEGORIES).length) throw new Error('categories.json enthält keine Kategorien');
+    } catch (err) {
+      console.error('categories.json konnte nicht geladen werden, nutze Notfall-Kategorie:', err);
+      CATEGORIES = FALLBACK_CATEGORIES;
+      DEFAULT_CATEGORY = 'automat';
+      showError('categories.json konnte nicht geladen werden – nutze eine Notfall-Kategorie.');
+    }
+    activeTypes = new Set(categoryIds());
+    listActiveTypes = new Set(categoryIds());
+    renderMapFilterChips();
+    renderListFilterChips();
+    renderHoursDayRows();
+
+    // 2) Konfiguration laden (Karten-Standardansicht, Umkreis-Stufen, Texte)
+    try {
+      const cfgRes = await fetch('./config.json', { cache: 'no-store' });
+      if (!cfgRes.ok) throw new Error('HTTP ' + cfgRes.status);
+      const cfgData = await cfgRes.json();
+      CONFIG = {
+        map: cfgData.map || CONFIG.map,
+        texts: cfgData.texts || {}
+      };
+      if (Array.isArray(cfgData.radiusOptions) && cfgData.radiusOptions.length) {
+        RADIUS_OPTIONS = cfgData.radiusOptions;
+      }
+    } catch (err) {
+      console.error('config.json konnte nicht geladen werden, nutze Standardwerte:', err);
+    }
+    renderRadiusChips();
+    applyTexts();
+    if (CONFIG.map && CONFIG.map.defaultCenter) {
+      map.setView([CONFIG.map.defaultCenter.lat, CONFIG.map.defaultCenter.lng], CONFIG.map.defaultZoom || 14);
+    }
+
+    // 3) Standorte laden
     try {
       const res = await fetch('./automaten.json', { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -897,7 +1146,7 @@
       showError('automaten.json konnte nicht geladen werden. Läuft die Seite über GitHub Pages / einen Server (nicht als lokale Datei geöffnet)?');
     }
     if (seedAutomaten.length) {
-      map.setView([seedAutomaten[0].lat, seedAutomaten[0].lng], 14);
+      map.setView([seedAutomaten[0].lat, seedAutomaten[0].lng], (CONFIG.map && CONFIG.map.defaultZoom) || 14);
     }
     renderMarkers();
   }
@@ -905,12 +1154,9 @@
 
   let userMarker = null;
   let pointMarker = null;
-  let activeOriginMarker = null; // der Pin, der zum aktuell angezeigten Ergebnis gehört
-  let lastKnownLocation = null; // bleibt auch nach dem Schließen des Ergebnisses erhalten (für Listen-Sortierung)
+  let activeOriginMarker = null;
+  let lastKnownLocation = null;
 
-  // ============================================================
-  // Haversine-Formel: Distanz zwischen zwei Koordinaten in Metern
-  // ============================================================
   function distanceMeters(lat1, lng1, lat2, lng2) {
     const R = 6371000;
     const toRad = deg => deg * Math.PI / 180;
@@ -937,7 +1183,6 @@
   const hintText = document.getElementById('hintText');
   const hintCancel = document.getElementById('hintCancel');
 
-  // ---- Modus-Verwaltung: idle / pick-point / add-automat ----
   let mode = 'idle';
 
   function setMode(newMode, hint) {
@@ -978,7 +1223,6 @@
     }
   });
 
-  // ---- "Mein Standort" ----
   locateBtn.addEventListener('click', () => {
     if (!navigator.geolocation) {
       showError('Geolocation wird von diesem Browser nicht unterstützt.');
@@ -1029,11 +1273,11 @@
   }
   resultClose.addEventListener('click', clearResult);
 
-  let lastSearch = null; // { lat, lng, label } der zuletzt ausgeführten Suche
+  let lastSearch = null;
 
   function findNearestFrom(fromLat, fromLng, label) {
     lastSearch = { lat: fromLat, lng: fromLng, label };
-    const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type));
+    const list = getVisibleAutomaten().filter(a => activeTypes.has(a.type) && (!mapOpenOnly || isOpenNow(a)));
     Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryType, false));
 
     let nearest = null;
@@ -1061,21 +1305,12 @@
     } else {
       resultDist.innerHTML = (nearestDist / 1000).toFixed(1) + '<span>km</span>';
     }
-    // origin explizit mitgeben, sonst nimmt Google Maps immer den
-    // aktuellen GPS-Standort statt des hier gewählten Startpunkts
     resultRoute.href = `https://www.google.com/maps/dir/?api=1&origin=${fromLat},${fromLng}&destination=${nearest.lat},${nearest.lng}&travelmode=walking`;
     resultEl.classList.add('visible');
 
     drawWalkingRoute(fromLat, fromLng, nearest.lat, nearest.lng);
   }
 
-  // ============================================================
-  // Echte Fußweg-Route zeichnen (via öffentlichem OSRM-Dienst).
-  // Die Distanz oben bleibt die Luftlinie; hier kommt zusätzlich
-  // die tatsächliche Gehstrecke inkl. ungefährer Gehzeit dazu.
-  // Schlägt der Dienst fehl (offline, überlastet, o.ä.), wird
-  // eine gestrichelte Luftlinie als Rückfallebene gezeigt.
-  // ============================================================
   let routeLayer = null;
 
   async function drawWalkingRoute(fromLat, fromLng, toLat, toLng) {
@@ -1118,6 +1353,9 @@
   const modalNote = document.getElementById('modalNote');
   const modalSave = document.getElementById('modalSave');
   const modalCancel = document.getElementById('modalCancel');
+  const hoursToggleLink = document.getElementById('hoursToggleLink');
+  const hoursEditor = document.getElementById('hoursEditor');
+  const hoursDayRows = document.getElementById('hoursDayRows');
   let pendingCoords = null;
   let pendingType = DEFAULT_CATEGORY;
 
@@ -1161,11 +1399,92 @@
     refreshModalTypeChips();
   }
 
+  // ---- Öffnungszeiten-Editor (Tag-Zeilen) ----
+  function renderHoursDayRows() {
+    hoursDayRows.innerHTML = '';
+    WEEKDAYS.forEach(day => {
+      const row = document.createElement('div');
+      row.className = 'hours-day-row';
+      row.dataset.day = day.code;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = 'hoursCheck_' + day.code;
+
+      const label = document.createElement('label');
+      label.className = 'hours-day-label';
+      label.htmlFor = checkbox.id;
+      label.textContent = day.label;
+
+      const openInput = document.createElement('input');
+      openInput.type = 'time';
+      openInput.value = '09:00';
+      openInput.disabled = true;
+
+      const sep = document.createElement('span');
+      sep.className = 'hours-day-sep';
+      sep.textContent = '–';
+
+      const closeInput = document.createElement('input');
+      closeInput.type = 'time';
+      closeInput.value = '20:00';
+      closeInput.disabled = true;
+
+      checkbox.addEventListener('change', () => {
+        openInput.disabled = !checkbox.checked;
+        closeInput.disabled = !checkbox.checked;
+      });
+
+      row.appendChild(checkbox);
+      row.appendChild(label);
+      row.appendChild(openInput);
+      row.appendChild(sep);
+      row.appendChild(closeInput);
+      hoursDayRows.appendChild(row);
+    });
+  }
+
+  hoursToggleLink.addEventListener('click', () => {
+    hoursEditor.classList.toggle('visible');
+    hoursToggleLink.textContent = hoursEditor.classList.contains('visible')
+      ? '– Öffnungszeiten ausblenden'
+      : '+ Öffnungszeiten (optional)';
+  });
+
+  function collectHoursFromEditor() {
+    const hours = {};
+    let any = false;
+    [...hoursDayRows.children].forEach(row => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      if (!checkbox.checked) return;
+      const [openInput, closeInput] = row.querySelectorAll('input[type="time"]');
+      if (!openInput.value || !closeInput.value) return;
+      hours[row.dataset.day] = [[openInput.value, closeInput.value]];
+      any = true;
+    });
+    return any ? hours : null;
+  }
+
+  function resetHoursEditor() {
+    [...hoursDayRows.children].forEach(row => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const [openInput, closeInput] = row.querySelectorAll('input[type="time"]');
+      checkbox.checked = false;
+      openInput.disabled = true;
+      closeInput.disabled = true;
+      openInput.value = '09:00';
+      closeInput.value = '20:00';
+    });
+    hoursEditor.classList.remove('visible');
+    hoursToggleLink.textContent = '+ Öffnungszeiten (optional)';
+  }
+
   function openAddModal(lat, lng) {
     pendingCoords = { lat, lng };
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
     modalNote.value = '';
+    resetHoursEditor();
     renderModalTypeChips();
     setPendingType(DEFAULT_CATEGORY);
     modalOverlay.classList.add('visible');
@@ -1190,15 +1509,18 @@
     const cat = CATEGORIES[pendingType];
     const name = modalInput.value.trim() || ('Neuer ' + cat.label);
     const note = modalNote.value.trim();
+    const hours = collectHoursFromEditor();
     const custom = loadCustom();
-    custom.push({
+    const entry = {
       id: makeId(),
       name,
       type: pendingType,
       note,
       lat: Math.round(pendingCoords.lat * 100000) / 100000,
       lng: Math.round(pendingCoords.lng * 100000) / 100000
-    });
+    };
+    if (hours) entry.hours = hours;
+    custom.push(entry);
     saveCustom(custom);
     renderMarkers();
     closeAddModal();
@@ -1211,6 +1533,7 @@
 
   // ---- Filter-Chips auf der Karte (Panel) ----
   const mapFilterRow = document.getElementById('mapFilterRow');
+  const mapOpenToggle = document.getElementById('mapOpenToggle');
 
   function renderMapFilterChips() {
     mapFilterRow.innerHTML = '';
@@ -1241,7 +1564,7 @@
 
   function toggleType(type, set, refreshFn, affectsSearch) {
     if (set.has(type)) {
-      if (set.size === 1) return; // mindestens eine Kategorie muss sichtbar bleiben
+      if (set.size === 1) return;
       set.delete(type);
     } else {
       set.add(type);
@@ -1249,9 +1572,6 @@
     refreshFn();
     if (affectsSearch) {
       renderMarkers();
-      // Falls gerade eine Route/Ergebnis angezeigt wird, mit der neuen
-      // Filterung neu berechnen (der bisher nächste Punkt könnte jetzt
-      // ausgeblendet sein).
       if (lastSearch) {
         findNearestFrom(lastSearch.lat, lastSearch.lng, lastSearch.label);
       }
@@ -1260,7 +1580,14 @@
     }
   }
 
-  renderMapFilterChips();
+  mapOpenToggle.addEventListener('click', () => {
+    mapOpenOnly = !mapOpenOnly;
+    mapOpenToggle.classList.toggle('active', mapOpenOnly);
+    renderMarkers();
+    if (lastSearch) {
+      findNearestFrom(lastSearch.lat, lastSearch.lng, lastSearch.label);
+    }
+  });
 
   // ---- "Liste exportieren" ----
   const exportBtn = document.getElementById('exportBtn');
@@ -1270,7 +1597,11 @@
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, type, note, lat, lng }) => ({ id, name, type, note, lat, lng }));
+    const list = getVisibleAutomaten().map(({ id, name, type, note, hours, lat, lng }) => {
+      const entry = { id, name, type, note, lat, lng };
+      if (hours) entry.hours = hours;
+      return entry;
+    });
     exportTextarea.value = JSON.stringify(list, null, 2);
     exportOverlay.classList.add('visible');
   });
@@ -1296,7 +1627,7 @@
     const deleted = loadDeleted();
     if (!custom.length && !deleted.length) {
       resetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
-      setTimeout(() => { resetBtn.textContent = 'Lokale Änderungen zurücksetzen'; }, 1800);
+      setTimeout(() => { resetBtn.textContent = (CONFIG.texts.resetLabel) || 'Lokale Änderungen zurücksetzen'; }, 1800);
       return;
     }
     if (!confirm('Alle lokal hinzugefügten und gelöschten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return;
@@ -1313,6 +1644,7 @@
   const listSearch = document.getElementById('listSearch');
   const listItems = document.getElementById('listItems');
   const listFilterRow = document.getElementById('listFilterRow');
+  const listOpenToggle = document.getElementById('listOpenToggle');
 
   function renderListFilterChips() {
     listFilterRow.innerHTML = '';
@@ -1340,15 +1672,74 @@
       btn.style.background = isActive ? cat.color + '15' : 'transparent';
     });
   }
-  renderListFilterChips();
+
+  listOpenToggle.addEventListener('click', () => {
+    listOpenOnly = !listOpenOnly;
+    listOpenToggle.classList.toggle('active', listOpenOnly);
+    renderList(listSearch.value);
+  });
+
+  // ---- Umkreissuche ----
+  const listRadiusRow = document.getElementById('listRadiusRow');
+  let activeRadius = null;
+  let radiusCircle = null;
+
+  function renderRadiusChips() {
+    listRadiusRow.innerHTML = '';
+    RADIUS_OPTIONS.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'radius-chip';
+      btn.textContent = opt.label;
+      btn.dataset.radiusValue = opt.value === null ? 'all' : opt.value;
+      btn.addEventListener('click', () => setActiveRadius(opt.value));
+      listRadiusRow.appendChild(btn);
+    });
+    refreshRadiusChips();
+  }
+
+  function refreshRadiusChips() {
+    [...listRadiusRow.children].forEach(btn => {
+      const val = btn.dataset.radiusValue === 'all' ? null : Number(btn.dataset.radiusValue);
+      btn.classList.toggle('active', val === activeRadius);
+    });
+  }
+
+  function setActiveRadius(value) {
+    if (value !== null && !lastKnownLocation) {
+      showError('Bitte zuerst "Mein Standort" oder "Punkt auf Karte wählen" nutzen, damit ein Umkreis berechnet werden kann.');
+      return;
+    }
+    activeRadius = value;
+    refreshRadiusChips();
+    updateRadiusCircle();
+    renderList(listSearch.value);
+  }
+
+  function updateRadiusCircle() {
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+    if (activeRadius && lastKnownLocation) {
+      radiusCircle = L.circle([lastKnownLocation.lat, lastKnownLocation.lng], {
+        radius: activeRadius,
+        color: '#7c9cff',
+        weight: 1.5,
+        dashArray: '5 5',
+        fillColor: '#7c9cff',
+        fillOpacity: 0.07
+      }).addTo(map);
+    }
+  }
 
   function openList() {
     listSearch.value = '';
     renderList('');
+    updateRadiusCircle();
     listOverlay.classList.add('visible');
     setTimeout(() => listSearch.focus(), 50);
   }
-  function closeList() { listOverlay.classList.remove('visible'); }
+  function closeList() {
+    listOverlay.classList.remove('visible');
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+  }
 
   countPill.addEventListener('click', openList);
   listClose.addEventListener('click', closeList);
@@ -1356,7 +1747,9 @@
 
   function renderList(query) {
     const q = query.trim().toLowerCase();
-    let items = getVisibleAutomaten().filter(a => listActiveTypes.has(a.type));
+    let items = getVisibleAutomaten().filter(a =>
+      listActiveTypes.has(a.type) && (!listOpenOnly || isOpenNow(a))
+    );
 
     if (q) {
       items = items.filter(a =>
@@ -1368,6 +1761,9 @@
       items = items
         .map(a => ({ ...a, _dist: distanceMeters(lastKnownLocation.lat, lastKnownLocation.lng, a.lat, a.lng) }))
         .sort((a, b) => a._dist - b._dist);
+      if (activeRadius) {
+        items = items.filter(a => a._dist <= activeRadius);
+      }
     } else {
       items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
     }
@@ -1377,17 +1773,21 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'list-empty';
-      empty.textContent = 'Keine Standorte gefunden.';
+      empty.textContent = activeRadius
+        ? `Keine Standorte im Umkreis von ${activeRadius < 1000 ? activeRadius + ' m' : (activeRadius / 1000) + ' km'}.`
+        : 'Keine Standorte gefunden.';
       listItems.appendChild(empty);
       return;
     }
 
     items.forEach(a => {
       const cat = CATEGORIES[a.type];
+      const open = isOpenNow(a);
       const el = document.createElement('div');
       el.className = 'list-item';
 
       const dot = buildDot(a.type);
+      if (a.hours && !open) dot.style.opacity = '0.4';
 
       const body = document.createElement('div');
       body.className = 'list-item-body';
@@ -1400,6 +1800,13 @@
         noteEl.className = 'list-item-note';
         noteEl.textContent = a.note;
         body.appendChild(noteEl);
+      }
+      if (a.hours) {
+        const statusEl = document.createElement('div');
+        statusEl.className = 'list-item-note';
+        statusEl.style.color = open ? 'var(--open-color)' : 'var(--closed-color)';
+        statusEl.textContent = (open ? (CONFIG.texts.statusOpenLabel || 'Geöffnet') : (CONFIG.texts.statusClosedLabel || 'Geschlossen'));
+        body.appendChild(statusEl);
       }
 
       el.appendChild(dot);
@@ -1428,6 +1835,21 @@
   }
 
   listSearch.addEventListener('input', () => renderList(listSearch.value));
+
+  // ---- Geöffnet/Geschlossen-Status alle 60s neu bewerten ----
+  // Damit "Nur jetzt geöffnete" auch dann stimmt, wenn die Seite über
+  // eine Öffnungs-/Schließzeit hinweg offen bleibt, ohne dass jemand
+  // neu laden oder etwas anklicken muss. Läuft gerade eine Route/ein
+  // Ergebnis, wird in diesem Zyklus pausiert, damit deren Hervorhebung
+  // nicht durch das Neuzeichnen der Marker verloren geht.
+  setInterval(() => {
+    if (!lastSearch) {
+      renderMarkers();
+    }
+    if (listOverlay.classList.contains('visible')) {
+      renderList(listSearch.value);
+    }
+  }, 60000);
 
 </script>
 
