@@ -835,7 +835,7 @@
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
-    <div class="modal-title">Neuer Standort</div>
+    <div class="modal-title" id="modalTitle">Neuer Standort</div>
     <div class="modal-coords" id="modalCoords">–</div>
     <div class="legend-row" id="modalTypeRow" style="margin-top:2px;"></div>
     <div class="hours-hint" style="margin:-8px 0 12px;">Mehrfachauswahl möglich, z.B. Laden mit Automat davor.</div>
@@ -1002,6 +1002,7 @@
 
   const STORAGE_CUSTOM = 'automatfinder_custom';
   const STORAGE_DELETED = 'automatfinder_deleted';
+  const STORAGE_EDITS = 'automatfinder_edits';
 
   function loadCustom() {
     try { return JSON.parse(localStorage.getItem(STORAGE_CUSTOM)) || []; }
@@ -1017,10 +1018,24 @@
   function saveDeleted(list) {
     localStorage.setItem(STORAGE_DELETED, JSON.stringify(list));
   }
+  // Lokale Überschreibungen für Standorte aus automaten.json: da die App
+  // diese Datei nicht selbst schreiben kann, werden Bearbeitungen an
+  // Datei-Standorten hier gespeichert und beim Anzeigen über die
+  // Originaldaten gelegt (nur im eigenen Browser sichtbar, bis per
+  // "Liste exportieren" in automaten.json übernommen).
+  function loadEdits() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_EDITS)) || {}; }
+    catch { return {}; }
+  }
+  function saveEdits(obj) {
+    localStorage.setItem(STORAGE_EDITS, JSON.stringify(obj));
+  }
 
   function getVisibleAutomaten() {
     const deleted = loadDeleted();
-    const combined = [...seedAutomaten, ...loadCustom()];
+    const edits = loadEdits();
+    const seedWithEdits = seedAutomaten.map(a => edits[a.id] ? { ...a, ...edits[a.id] } : a);
+    const combined = [...seedWithEdits, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
       .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null }));
@@ -1196,6 +1211,12 @@
         popupEl.appendChild(buildFullHoursEl(a));
       }
 
+      const editBtn = document.createElement('button');
+      editBtn.className = 'popup-route-link';
+      editBtn.type = 'button';
+      editBtn.textContent = 'Bearbeiten';
+      editBtn.addEventListener('click', () => { map.closePopup(); openEditModal(a); });
+
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
       delBtn.textContent = 'Löschen';
@@ -1211,6 +1232,7 @@
       const actions = document.createElement('div');
       actions.className = 'popup-actions';
       actions.appendChild(routeLink);
+      actions.appendChild(editBtn);
       actions.appendChild(delBtn);
       popupEl.appendChild(actions);
 
@@ -1231,6 +1253,8 @@
     if (fileIds.has(id)) {
       const deleted = loadDeleted();
       if (!deleted.includes(id)) { deleted.push(id); saveDeleted(deleted); }
+      const edits = loadEdits();
+      if (edits[id]) { delete edits[id]; saveEdits(edits); }
     } else {
       const custom = loadCustom().filter(a => a.id !== id);
       saveCustom(custom);
@@ -1655,6 +1679,7 @@
         state.entries.push(entry);
         rangesBox.insertBefore(entry.rowWrap, addBtn);
       }
+      state.addRange = addRange;
 
       checkbox.addEventListener('change', () => {
         if (checkbox.checked) {
@@ -1733,7 +1758,36 @@
     hoursToggleLink.textContent = '+ Öffnungszeiten (optional)';
   }
 
+  // Befüllt den Editor mit bestehenden Öffnungszeiten (zum Bearbeiten).
+  // Setzt vorher über resetHoursEditor() zurück, damit nichts vom
+  // vorherigen Modal-Aufruf übrig bleibt.
+  function populateHoursEditor(hoursObj) {
+    resetHoursEditor();
+    if (!hoursObj) return;
+    let any = false;
+    WEEKDAYS.forEach(day => {
+      const ranges = hoursObj[day.code];
+      if (!ranges || !ranges.length) return;
+      const state = dayState[day.code];
+      state.checkbox.checked = true;
+      state.rangesBox.style.display = 'block';
+      ranges.forEach(([o, c]) => state.addRange(o, c));
+      any = true;
+    });
+    if (any) {
+      hoursEditor.classList.add('visible');
+      hoursToggleLink.textContent = '– Öffnungszeiten ausblenden';
+    }
+  }
+
+  const modalTitle = document.getElementById('modalTitle');
+  let modalMode = 'add'; // 'add' | 'edit'
+  let editingId = null;
+
   function openAddModal(lat, lng) {
+    modalMode = 'add';
+    editingId = null;
+    modalTitle.textContent = 'Neuer Standort';
     pendingCoords = { lat, lng };
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
@@ -1741,6 +1795,26 @@
     resetHoursEditor();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
     renderModalTypeChips();
+    modalSave.textContent = 'Speichern';
+    modalOverlay.classList.add('visible');
+    setTimeout(() => modalInput.focus(), 50);
+  }
+
+  // Öffnet dasselbe Modal zum Bearbeiten eines bestehenden Standorts
+  // (aus automaten.json oder lokal hinzugefügt). loc muss die
+  // aufbereiteten Felder aus getVisibleAutomaten() haben (types, hours).
+  function openEditModal(loc) {
+    modalMode = 'edit';
+    editingId = loc.id;
+    modalTitle.textContent = 'Standort bearbeiten';
+    pendingCoords = { lat: loc.lat, lng: loc.lng };
+    modalCoords.textContent = `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (Position unverändert)`;
+    modalInput.value = loc.name || '';
+    modalNote.value = loc.note || '';
+    populateHoursEditor(loc.hours);
+    pendingTypes = new Set(loc.types && loc.types.length ? loc.types : [DEFAULT_CATEGORY]);
+    renderModalTypeChips();
+    modalSave.textContent = 'Änderungen speichern';
     modalOverlay.classList.add('visible');
     setTimeout(() => modalInput.focus(), 50);
   }
@@ -1748,6 +1822,7 @@
   function closeAddModal() {
     modalOverlay.classList.remove('visible');
     pendingCoords = null;
+    editingId = null;
   }
 
   modalCancel.addEventListener('click', closeAddModal);
@@ -1764,18 +1839,42 @@
     const name = modalInput.value.trim() || ('Neuer ' + CATEGORIES[typesArr[0]].label);
     const note = modalNote.value.trim();
     const hours = collectHoursFromEditor();
-    const custom = loadCustom();
-    const entry = {
-      id: makeId(),
-      name,
-      type: typesArr.join(','),
-      note,
-      lat: Math.round(pendingCoords.lat * 100000) / 100000,
-      lng: Math.round(pendingCoords.lng * 100000) / 100000
-    };
-    if (hours) entry.hours = hours;
-    custom.push(entry);
-    saveCustom(custom);
+
+    if (modalMode === 'edit' && editingId) {
+      const fields = { name, type: typesArr.join(','), note };
+      // "hours" nur setzen, wenn vorhanden, sonst explizit entfernen
+      // (leeres/undefiniertes Feld = durchgehend geöffnet).
+      fields.hours = hours || undefined;
+
+      if (fileIds.has(editingId)) {
+        const edits = loadEdits();
+        edits[editingId] = { ...edits[editingId], ...fields };
+        if (!fields.hours) delete edits[editingId].hours;
+        saveEdits(edits);
+      } else {
+        const custom = loadCustom();
+        const idx = custom.findIndex(a => a.id === editingId);
+        if (idx !== -1) {
+          custom[idx] = { ...custom[idx], ...fields };
+          if (!fields.hours) delete custom[idx].hours;
+          saveCustom(custom);
+        }
+      }
+    } else {
+      const custom = loadCustom();
+      const entry = {
+        id: makeId(),
+        name,
+        type: typesArr.join(','),
+        note,
+        lat: Math.round(pendingCoords.lat * 100000) / 100000,
+        lng: Math.round(pendingCoords.lng * 100000) / 100000
+      };
+      if (hours) entry.hours = hours;
+      custom.push(entry);
+      saveCustom(custom);
+    }
+
     renderMarkers();
     closeAddModal();
   });
@@ -1879,14 +1978,16 @@
   resetBtn.addEventListener('click', () => {
     const custom = loadCustom();
     const deleted = loadDeleted();
-    if (!custom.length && !deleted.length) {
+    const edits = loadEdits();
+    if (!custom.length && !deleted.length && !Object.keys(edits).length) {
       resetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
       setTimeout(() => { resetBtn.textContent = (CONFIG.texts.resetLabel) || 'Lokale Änderungen zurücksetzen'; }, 1800);
       return;
     }
-    if (!confirm('Alle lokal hinzugefügten und gelöschten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return;
+    if (!confirm('Alle lokal hinzugefügten, gelöschten und bearbeiteten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return;
     localStorage.removeItem(STORAGE_CUSTOM);
     localStorage.removeItem(STORAGE_DELETED);
+    localStorage.removeItem(STORAGE_EDITS);
     renderMarkers();
     resultEl.classList.remove('visible');
   });
