@@ -848,6 +848,63 @@
     font-size: 12.5px;
     margin-bottom: 4px;
   }
+
+  .import-row-badge.new { background: rgba(76,217,123,0.15); color: #4cd97b; }
+
+  .diff-detail-body {
+    margin: 6px 0 2px;
+    padding: 8px 9px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 7px;
+    font-size: 12px;
+  }
+  .diff-field-title {
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 6px 0 3px;
+  }
+  .diff-field-title:first-child { margin-top: 0; }
+  .diff-field-row, .diff-hours-row {
+    padding: 3px 0;
+    line-height: 1.5;
+  }
+  .diff-field-label { color: var(--text-dim); }
+  .diff-hours-day { display: inline-block; width: 22px; color: var(--text-dim); }
+  .diff-before { color: var(--text-dim); text-decoration: line-through; }
+  .diff-after { color: var(--text); font-weight: 500; }
+
+  .import-row-map-btn {
+    align-self: flex-start;
+    margin-top: 2px;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--point);
+    font-family: 'Inter', sans-serif;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .import-row-map-btn:hover { border-color: var(--point); }
+
+  .import-newitems-section { margin-bottom: 8px; }
+  .import-newitems-section .import-row { margin-bottom: 6px; }
+
+  #importOverlay.map-mode {
+    background: transparent;
+    pointer-events: none;
+  }
+  #importOverlay.map-mode .list-panel {
+    pointer-events: auto;
+    max-height: 150px;
+  }
+  #importOverlay.map-mode #importSummary,
+  #importOverlay.map-mode #importReviewList {
+    display: none;
+  }
 </style>
 </head>
 <body>
@@ -955,6 +1012,7 @@
 
     <div id="importStep2" style="display:none; flex-direction:column; overflow:hidden; flex:1;">
       <div id="importSummary"></div>
+      <button type="button" class="hours-toggle-link" id="importToggleMap">Karte anzeigen (um Standorte einzuordnen)</button>
       <div class="list-items" id="importReviewList"></div>
       <div class="modal-actions" style="margin-top:10px; flex-shrink:0;">
         <button class="modal-btn cancel" id="importCancel2">Abbrechen</button>
@@ -2102,18 +2160,101 @@
       ca.hours === cb.hours && ca.lat === cb.lat && ca.lng === cb.lng;
   }
 
-  function describeDiff(current, imported) {
-    const parts = [];
+  function formatDayRanges(ranges) {
+    if (!ranges || !ranges.length) return 'geschlossen';
+    return ranges.map(([o, c]) => `${o}–${c}`).join(', ');
+  }
+
+  // Tag-für-Tag-Vergleich zweier Öffnungszeiten-Objekte; liefert nur
+  // die Tage zurück, die sich tatsächlich unterscheiden.
+  function hoursDiffRows(beforeHours, afterHours) {
+    const rows = [];
+    WEEKDAYS.forEach(day => {
+      const bText = beforeHours ? formatDayRanges(beforeHours[day.code] || []) : 'durchgehend geöffnet';
+      const aText = afterHours ? formatDayRanges(afterHours[day.code] || []) : 'durchgehend geöffnet';
+      if (bText !== aText) rows.push({ label: day.label, before: bText, after: aText });
+    });
+    return rows;
+  }
+
+  // Liefert eine Liste strukturierter Feld-Unterschiede statt eines
+  // fertigen Textes, damit die Anzeige daraus eine kurze Zusammen-
+  // fassung UND eine ausklappbare Detailansicht bauen kann.
+  function describeDiffFields(current, imported) {
     const cc = canonicalizeForCompare(current), ci = canonicalizeForCompare(imported);
-    if (cc.name !== ci.name) parts.push(`Name: <b>${escapeHtml(cc.name)}</b> → <b>${escapeHtml(ci.name)}</b>`);
+    const fields = [];
+    if (cc.name !== ci.name) fields.push({ label: 'Name', before: cc.name, after: ci.name });
     if (cc.type !== ci.type) {
       const label = t => t.split(',').map(x => CATEGORIES[categoryOf(x)].label).join(', ');
-      parts.push(`Kategorie: <b>${escapeHtml(label(cc.type))}</b> → <b>${escapeHtml(label(ci.type))}</b>`);
+      fields.push({ label: 'Kategorie', before: label(cc.type), after: label(ci.type) });
     }
-    if (cc.note !== ci.note) parts.push(`Notiz: <b>${escapeHtml(cc.note || '–')}</b> → <b>${escapeHtml(ci.note || '–')}</b>`);
-    if (cc.hours !== ci.hours) parts.push(`Öffnungszeiten geändert`);
-    if (cc.lat !== ci.lat || cc.lng !== ci.lng) parts.push(`Position leicht abweichend`);
-    return parts.length ? parts.join('<br>') : 'Unterschied erkannt';
+    if (cc.note !== ci.note) fields.push({ label: 'Notiz', before: cc.note || '–', after: ci.note || '–' });
+    if (cc.hours !== ci.hours) {
+      fields.push({ label: 'Öffnungszeiten', isHours: true, rows: hoursDiffRows(current.hours, imported.hours) });
+    }
+    if (cc.lat !== ci.lat || cc.lng !== ci.lng) {
+      fields.push({ label: 'Position', before: `${cc.lat}, ${cc.lng}`, after: `${ci.lat}, ${ci.lng}` });
+    }
+    return fields;
+  }
+
+  // Baut aus den Feld-Unterschieden ein Element: kurze Zusammenfassung
+  // als Klapp-Button ("+ Was geändert wurde (…)"), darunter die
+  // vollständige Detailansicht inkl. Tag-für-Tag-Öffnungszeiten.
+  function buildDiffDetailEl(fields) {
+    const wrap = document.createElement('div');
+    if (!fields.length) {
+      wrap.className = 'import-row-diff';
+      wrap.textContent = 'Unterschied erkannt';
+      return wrap;
+    }
+
+    const summary = fields.map(f => f.label).join(', ');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'hours-toggle-link';
+    toggle.textContent = `+ Was geändert wurde (${summary})`;
+
+    const body = document.createElement('div');
+    body.className = 'diff-detail-body';
+    body.style.display = 'none';
+
+    fields.forEach(f => {
+      if (f.isHours) {
+        const title = document.createElement('div');
+        title.className = 'diff-field-title';
+        title.textContent = 'Öffnungszeiten:';
+        body.appendChild(title);
+        if (f.rows.length) {
+          f.rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'diff-hours-row';
+            row.innerHTML = `<span class="diff-hours-day">${escapeHtml(r.label)}</span> <span class="diff-before">${escapeHtml(r.before)}</span> → <span class="diff-after">${escapeHtml(r.after)}</span>`;
+            body.appendChild(row);
+          });
+        } else {
+          const row = document.createElement('div');
+          row.className = 'diff-hours-row';
+          row.textContent = 'Änderung erkannt, Tage aber gleich formatiert.';
+          body.appendChild(row);
+        }
+      } else {
+        const row = document.createElement('div');
+        row.className = 'diff-field-row';
+        row.innerHTML = `<span class="diff-field-label">${escapeHtml(f.label)}:</span> <span class="diff-before">${escapeHtml(f.before)}</span> → <span class="diff-after">${escapeHtml(f.after)}</span>`;
+        body.appendChild(row);
+      }
+    });
+
+    toggle.addEventListener('click', () => {
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? `+ Was geändert wurde (${summary})` : '– Details einklappen';
+    });
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(body);
+    return wrap;
   }
 
   // Grobe Namensähnlichkeit über Wort-Überlappung statt reiner
@@ -2174,7 +2315,7 @@
         if (nearMatch) {
           result.possibleDuplicates.push({ imported: raw, match: nearMatch, choice: 'skip' });
         } else {
-          result.newItems.push(raw);
+          result.newItems.push({ imported: raw, choice: 'import' });
         }
       }
     });
@@ -2185,7 +2326,9 @@
     const custom = loadCustom();
     const edits = loadEdits();
 
-    result.newItems.forEach(raw => custom.push(cleanImportedEntry(raw)));
+    result.newItems.forEach(ni => {
+      if (ni.choice === 'import') custom.push(cleanImportedEntry(ni.imported));
+    });
 
     result.possibleDuplicates.forEach(pd => {
       if (pd.choice === 'import') custom.push(cleanImportedEntry(pd.imported));
@@ -2223,8 +2366,83 @@
   const importStep2 = document.getElementById('importStep2');
   const importSummary = document.getElementById('importSummary');
   const importReviewList = document.getElementById('importReviewList');
+  const importToggleMap = document.getElementById('importToggleMap');
 
   let currentImportResult = null;
+
+  // ---- Kartenvorschau der Import-Ergebnisse ----
+  // Neue Standorte (grün), geänderte/importierte Positionen bei
+  // Konflikten (amber, mit gestrichelter Linie zur bisherigen Version)
+  // und mögliche Doppeleinträge (violett, mit Linie zum vermuteten
+  // bereits vorhandenen Standort) werden während der Prüfung
+  // zusätzlich auf der echten Karte eingeblendet.
+  let importPreviewLayer = null;
+  let importMapMode = false;
+
+  function makeImportMarkerIcon(color, shape) {
+    const style = shape === 'diamond'
+      ? `width:16px;height:16px;background:${color};border:2px solid #fff;border-radius:3px 3px 3px 0;transform:rotate(45deg);box-shadow:0 2px 6px rgba(0,0,0,.5);`
+      : `width:16px;height:16px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.5);`;
+    return makeDivIcon(`<div style="${style}"></div>`, [16, 16]);
+  }
+
+  function clearImportPreview() {
+    if (importPreviewLayer) { map.removeLayer(importPreviewLayer); importPreviewLayer = null; }
+  }
+
+  function renderImportPreview() {
+    clearImportPreview();
+    if (!currentImportResult) return;
+    importPreviewLayer = L.layerGroup().addTo(map);
+    const r = currentImportResult;
+
+    r.newItems.forEach(ni => {
+      L.marker([ni.imported.lat, ni.imported.lng], {
+        icon: makeImportMarkerIcon('#4cd97b', 'circle'),
+        opacity: ni.choice === 'import' ? 1 : 0.35
+      }).bindTooltip(ni.imported.name + ' (neu)', { direction: 'top' }).addTo(importPreviewLayer);
+    });
+
+    r.conflicts.forEach(c => {
+      L.marker([c.imported.lat, c.imported.lng], {
+        icon: makeImportMarkerIcon('#f2a900', 'diamond'),
+        opacity: c.choice === 'imported' ? 1 : 0.55
+      }).bindTooltip(c.imported.name + ' (geänderte Version)', { direction: 'top' }).addTo(importPreviewLayer);
+      const moved = Math.abs(c.imported.lat - c.current.lat) > 0.00001 || Math.abs(c.imported.lng - c.current.lng) > 0.00001;
+      if (moved) {
+        L.polyline([[c.current.lat, c.current.lng], [c.imported.lat, c.imported.lng]], {
+          color: '#f2a900', weight: 1.5, dashArray: '4 4', opacity: 0.6
+        }).addTo(importPreviewLayer);
+      }
+    });
+
+    r.possibleDuplicates.forEach(pd => {
+      L.marker([pd.imported.lat, pd.imported.lng], {
+        icon: makeImportMarkerIcon('#a78bfa', 'circle'),
+        opacity: pd.choice === 'import' ? 1 : 0.55
+      }).bindTooltip(pd.imported.name + ' (möglicher Doppeleintrag)', { direction: 'top' }).addTo(importPreviewLayer);
+      L.polyline([[pd.match.lat, pd.match.lng], [pd.imported.lat, pd.imported.lng]], {
+        color: '#a78bfa', weight: 1.5, dashArray: '4 4', opacity: 0.6
+      }).addTo(importPreviewLayer);
+    });
+  }
+
+  function setImportMapMode(on) {
+    importMapMode = on;
+    importOverlay.classList.toggle('map-mode', importMapMode);
+    importToggleMap.textContent = importMapMode ? 'Zur Liste zurück' : 'Karte anzeigen (um Standorte einzuordnen)';
+  }
+
+  function focusImportRow(latlngs) {
+    setImportMapMode(true);
+    if (latlngs.length === 1) {
+      map.setView(latlngs[0], 18);
+    } else {
+      map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60], maxZoom: 18 });
+    }
+  }
+
+  importToggleMap.addEventListener('click', () => setImportMapMode(!importMapMode));
 
   function openImportModal() {
     importStep1.style.display = 'block';
@@ -2233,9 +2451,14 @@
     importTextarea.value = '';
     importError.classList.remove('visible');
     currentImportResult = null;
+    setImportMapMode(false);
     importOverlay.classList.add('visible');
   }
-  function closeImportModal() { importOverlay.classList.remove('visible'); }
+  function closeImportModal() {
+    importOverlay.classList.remove('visible');
+    setImportMapMode(false);
+    clearImportPreview();
+  }
 
   importBtn.addEventListener('click', openImportModal);
   importClose.addEventListener('click', closeImportModal);
@@ -2273,6 +2496,7 @@
 
     currentImportResult = analyzeImport(items);
     renderImportReview();
+    renderImportPreview();
     importStep1.style.display = 'none';
     importStep2.style.display = 'flex';
   });
@@ -2280,7 +2504,7 @@
   function renderImportReview() {
     const r = currentImportResult;
     const parts = [];
-    parts.push(`<div class="import-summary-line">✓ <b>${r.newItems.length}</b> neue Standorte werden übernommen</div>`);
+    parts.push(`<div class="import-summary-line">✓ <b id="importNewCount">${r.newItems.length}</b> neue Standorte werden übernommen</div>`);
     parts.push(`<div class="import-summary-line">– <b>${r.duplicateCount}</b> bereits identisch vorhanden (übersprungen)</div>`);
     if (r.conflicts.length) parts.push(`<div class="import-summary-line" style="color:var(--amber);">⚠ <b>${r.conflicts.length}</b> mit Unterschieden – bitte unten prüfen</div>`);
     if (r.possibleDuplicates.length) parts.push(`<div class="import-summary-line" style="color:var(--point);">? <b>${r.possibleDuplicates.length}</b> mögliche Doppeleinträge – bitte unten prüfen</div>`);
@@ -2289,22 +2513,38 @@
 
     importReviewList.innerHTML = '';
 
+    function updateNewCount() {
+      const el = document.getElementById('importNewCount');
+      if (el) el.textContent = r.newItems.filter(ni => ni.choice === 'import').length;
+    }
+
+    // ---- Konflikte: bekannter Standort, aber Felder unterscheiden sich ----
     r.conflicts.forEach((c, i) => {
       const row = document.createElement('div');
       row.className = 'import-row';
       row.innerHTML = `
         <div class="import-row-title">${escapeHtml(c.current.name)} <span class="import-row-badge conflict">Konflikt</span></div>
-        <div class="import-row-diff">${describeDiff(c.current, c.imported)}</div>
         <div class="import-row-choice">
           <label><input type="radio" name="conflict_${i}" value="keep" checked> Lokale Version behalten</label>
           <label><input type="radio" name="conflict_${i}" value="imported"> Importierte Version übernehmen</label>
         </div>`;
+      const diffEl = buildDiffDetailEl(describeDiffFields(c.current, c.imported));
+      row.querySelector('.import-row-choice').insertAdjacentElement('beforebegin', diffEl);
+
+      const mapBtn = document.createElement('button');
+      mapBtn.type = 'button';
+      mapBtn.className = 'import-row-map-btn';
+      mapBtn.textContent = 'Auf Karte zeigen';
+      mapBtn.addEventListener('click', () => focusImportRow([[c.current.lat, c.current.lng], [c.imported.lat, c.imported.lng]]));
+      row.appendChild(mapBtn);
+
       row.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.addEventListener('change', () => { c.choice = radio.value; });
+        radio.addEventListener('change', () => { c.choice = radio.value; renderImportPreview(); });
       });
       importReviewList.appendChild(row);
     });
 
+    // ---- Mögliche Doppeleinträge: kein bekannter Standort, aber nah dran ----
     r.possibleDuplicates.forEach((pd, i) => {
       const d = Math.round(distanceMeters(pd.imported.lat, pd.imported.lng, pd.match.lat, pd.match.lng));
       const row = document.createElement('div');
@@ -2316,13 +2556,75 @@
           <label><input type="radio" name="possible_${i}" value="skip" checked> Überspringen (vermutlich derselbe Standort)</label>
           <label><input type="radio" name="possible_${i}" value="import"> Trotzdem als neuen, separaten Standort importieren</label>
         </div>`;
+      const diffEl = buildDiffDetailEl(describeDiffFields(pd.match, pd.imported));
+      row.querySelector('.import-row-choice').insertAdjacentElement('beforebegin', diffEl);
+
+      const mapBtn = document.createElement('button');
+      mapBtn.type = 'button';
+      mapBtn.className = 'import-row-map-btn';
+      mapBtn.textContent = 'Auf Karte zeigen';
+      mapBtn.addEventListener('click', () => focusImportRow([[pd.match.lat, pd.match.lng], [pd.imported.lat, pd.imported.lng]]));
+      row.appendChild(mapBtn);
+
       row.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.addEventListener('change', () => { pd.choice = radio.value; });
+        radio.addEventListener('change', () => { pd.choice = radio.value; renderImportPreview(); });
       });
       importReviewList.appendChild(row);
     });
 
-    if (!r.conflicts.length && !r.possibleDuplicates.length) {
+    // ---- Neue Standorte ohne Konflikt: ausklappbar, einzeln abwählbar ----
+    if (r.newItems.length) {
+      const section = document.createElement('div');
+      section.className = 'import-newitems-section';
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'hours-toggle-link';
+      const labelFor = open => (open ? '– Neue Standorte einklappen' : `+ ${r.newItems.length} neue Standorte ohne Konflikt ansehen/auswählen`);
+      toggle.textContent = labelFor(false);
+
+      const body = document.createElement('div');
+      body.style.display = 'none';
+
+      r.newItems.forEach(ni => {
+        const catLabel = parseTypes(ni.imported.type).map(t => CATEGORIES[categoryOf(t)].label).join(', ');
+        const row = document.createElement('div');
+        row.className = 'import-row';
+        row.innerHTML = `
+          <div class="import-row-title">${escapeHtml(ni.imported.name)} <span class="import-row-badge new">Neu</span></div>
+          <div class="import-row-diff">${escapeHtml(catLabel)}${ni.imported.note ? ' · ' + escapeHtml(ni.imported.note) : ''}</div>
+          <div class="import-row-choice">
+            <label><input type="checkbox" checked> Übernehmen</label>
+          </div>`;
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', () => {
+          ni.choice = checkbox.checked ? 'import' : 'exclude';
+          updateNewCount();
+          renderImportPreview();
+        });
+
+        const mapBtn = document.createElement('button');
+        mapBtn.type = 'button';
+        mapBtn.className = 'import-row-map-btn';
+        mapBtn.textContent = 'Auf Karte zeigen';
+        mapBtn.addEventListener('click', () => focusImportRow([[ni.imported.lat, ni.imported.lng]]));
+        row.appendChild(mapBtn);
+
+        body.appendChild(row);
+      });
+
+      toggle.addEventListener('click', () => {
+        const isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        toggle.textContent = labelFor(!isOpen);
+      });
+
+      section.appendChild(toggle);
+      section.appendChild(body);
+      importReviewList.appendChild(section);
+    }
+
+    if (!r.conflicts.length && !r.possibleDuplicates.length && !r.newItems.length) {
       const info = document.createElement('div');
       info.className = 'list-empty';
       info.textContent = 'Keine Konflikte oder möglichen Doppeleinträge – einfach unten übernehmen.';
