@@ -789,6 +789,65 @@
     font-size: 13px;
     padding: 30px 10px;
   }
+
+  /* --- Import-Dialog --- */
+  .import-file-input {
+    width: 100%;
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .import-row {
+    border: 1px solid var(--panel-border);
+    border-radius: 9px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .import-row-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .import-row-badge {
+    font-family: 'Inter', sans-serif;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+  .import-row-badge.conflict { background: rgba(242,169,0,0.15); color: var(--amber); }
+  .import-row-badge.possible { background: rgba(124,156,255,0.15); color: var(--point); }
+  .import-row-diff {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 6px 0;
+    line-height: 1.5;
+  }
+  .import-row-diff b { color: var(--text); font-weight: 500; }
+  .import-row-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .import-row-choice label {
+    font-size: 12.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .import-row-choice input[type="radio"] { accent-color: var(--amber); }
+  .import-summary-line {
+    font-size: 12.5px;
+    margin-bottom: 4px;
+  }
 </style>
 </head>
 <body>
@@ -814,6 +873,7 @@
     <button class="mode-btn secondary" id="addBtn">Standort<br>hinzufügen</button>
   </div>
   <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
+  <button class="export-link" id="importBtn">Liste importieren (von anderem Export)</button>
   <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
   <div class="error-msg" id="errorMsg"></div>
   <div class="result" id="result">
@@ -867,6 +927,39 @@
     <div class="modal-actions">
       <button class="modal-btn cancel" id="exportClose">Schließen</button>
       <button class="modal-btn save" id="exportCopy">In Zwischenablage kopieren</button>
+    </div>
+  </div>
+</div>
+
+<div class="list-overlay" id="importOverlay">
+  <div class="list-panel">
+    <div class="list-header">
+      <div class="list-title">Liste importieren</div>
+      <button class="result-close" id="importClose" aria-label="Schließen">✕</button>
+    </div>
+
+    <div id="importStep1">
+      <div class="modal-coords" style="margin-bottom:10px;">
+        Wähle eine exportierte JSON-Datei aus (z.B. von einem Freund), oder füge den Inhalt unten ein.
+        Bereits identische Standorte werden automatisch erkannt und übersprungen; bei Unterschieden
+        oder möglichen Doppeleinträgen fragt die App nach.
+      </div>
+      <input type="file" id="importFileInput" class="import-file-input" accept=".json,application/json">
+      <textarea id="importTextarea" class="modal-input" style="height:120px;font-family:'JetBrains Mono',monospace;font-size:12px;" placeholder="…oder JSON-Text hier einfügen"></textarea>
+      <div class="error-msg" id="importError"></div>
+      <div class="modal-actions" style="margin-top:10px;">
+        <button class="modal-btn cancel" id="importCancel1">Abbrechen</button>
+        <button class="modal-btn save" id="importAnalyze">Analysieren</button>
+      </div>
+    </div>
+
+    <div id="importStep2" style="display:none; flex-direction:column; overflow:hidden; flex:1;">
+      <div id="importSummary"></div>
+      <div class="list-items" id="importReviewList"></div>
+      <div class="modal-actions" style="margin-top:10px; flex-shrink:0;">
+        <button class="modal-btn cancel" id="importCancel2">Abbrechen</button>
+        <button class="modal-btn save" id="importApply">Import übernehmen</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1971,6 +2064,276 @@
       exportTextarea.select();
       document.execCommand('copy');
     }
+  });
+
+  // ============================================================
+  // "Liste importieren": eine exportierte JSON-Datei (z.B. von einem
+  // Freund) einlesen und mit dem aktuellen Stand abgleichen.
+  //
+  // Erkennungslogik:
+  // - Gleiche ID + inhaltlich identisch      -> Duplikat, wird automatisch
+  //                                              übersprungen (Normalfall,
+  //                                              wenn beide vom selben
+  //                                              automaten.json-Stand
+  //                                              ausgegangen sind).
+  // - Gleiche ID, aber unterschiedlicher      -> Konflikt, muss von Hand
+  //   Inhalt (z.B. andere Öffnungszeiten)        entschieden werden.
+  // - Unterschiedliche ID, aber Name+Standort -> möglicher Doppeleintrag,
+  //   sehr ähnlich (z.B. beide haben den         ebenfalls zur Entscheidung.
+  //   gleichen neuen Kiosk angelegt)
+  // - Alles andere                            -> einfach neu, wird
+  //                                              automatisch übernommen.
+  // ============================================================
+
+  function canonicalizeForCompare(loc) {
+    return {
+      name: String(loc.name || '').trim(),
+      type: parseTypes(loc.type).slice().sort().join(','),
+      note: String(loc.note || '').trim(),
+      hours: loc.hours ? JSON.stringify(loc.hours) : null,
+      lat: Math.round((Number(loc.lat) || 0) * 100000) / 100000,
+      lng: Math.round((Number(loc.lng) || 0) * 100000) / 100000
+    };
+  }
+
+  function locationsEqual(a, b) {
+    const ca = canonicalizeForCompare(a), cb = canonicalizeForCompare(b);
+    return ca.name === cb.name && ca.type === cb.type && ca.note === cb.note &&
+      ca.hours === cb.hours && ca.lat === cb.lat && ca.lng === cb.lng;
+  }
+
+  function describeDiff(current, imported) {
+    const parts = [];
+    const cc = canonicalizeForCompare(current), ci = canonicalizeForCompare(imported);
+    if (cc.name !== ci.name) parts.push(`Name: <b>${escapeHtml(cc.name)}</b> → <b>${escapeHtml(ci.name)}</b>`);
+    if (cc.type !== ci.type) {
+      const label = t => t.split(',').map(x => CATEGORIES[categoryOf(x)].label).join(', ');
+      parts.push(`Kategorie: <b>${escapeHtml(label(cc.type))}</b> → <b>${escapeHtml(label(ci.type))}</b>`);
+    }
+    if (cc.note !== ci.note) parts.push(`Notiz: <b>${escapeHtml(cc.note || '–')}</b> → <b>${escapeHtml(ci.note || '–')}</b>`);
+    if (cc.hours !== ci.hours) parts.push(`Öffnungszeiten geändert`);
+    if (cc.lat !== ci.lat || cc.lng !== ci.lng) parts.push(`Position leicht abweichend`);
+    return parts.length ? parts.join('<br>') : 'Unterschied erkannt';
+  }
+
+  // Grobe Namensähnlichkeit über Wort-Überlappung statt reiner
+  // Teilstring-Suche, damit z.B. "Kiosk Ecke" und "Kiosk Kneipe Ecke"
+  // trotz abweichender Wortreihenfolge/-anzahl noch erkannt werden.
+  function namesSimilar(n1, n2) {
+    if (!n1 || !n2) return false;
+    if (n1 === n2) return true;
+    const w1 = new Set(n1.split(/\s+/).filter(Boolean));
+    const w2 = new Set(n2.split(/\s+/).filter(Boolean));
+    if (!w1.size || !w2.size) return false;
+    let common = 0;
+    w1.forEach(w => { if (w2.has(w)) common++; });
+    return common / Math.min(w1.size, w2.size) >= 0.5;
+  }
+
+  function looksLikeDuplicate(importedLoc, existingLoc) {
+    const d = distanceMeters(importedLoc.lat, importedLoc.lng, existingLoc.lat, existingLoc.lng);
+    if (d > 25) return false;
+    if (d < 8) return true; // extrem nah beieinander reicht allein schon
+    const n1 = String(importedLoc.name || '').toLowerCase().trim();
+    const n2 = String(existingLoc.name || '').toLowerCase().trim();
+    return namesSimilar(n1, n2);
+  }
+
+  function cleanImportedEntry(raw) {
+    const entry = {
+      id: String(raw.id),
+      name: String(raw.name).trim(),
+      type: raw.type || DEFAULT_CATEGORY,
+      note: raw.note || '',
+      lat: Number(raw.lat),
+      lng: Number(raw.lng)
+    };
+    if (raw.hours) entry.hours = raw.hours;
+    return entry;
+  }
+
+  function analyzeImport(items) {
+    const current = getVisibleAutomaten();
+    const currentById = new Map(current.map(a => [String(a.id), a]));
+    const result = { newItems: [], duplicateCount: 0, conflicts: [], possibleDuplicates: [], invalidCount: 0 };
+
+    items.forEach(raw => {
+      if (!raw || !raw.id || !raw.name || typeof raw.lat !== 'number' || typeof raw.lng !== 'number') {
+        result.invalidCount++;
+        return;
+      }
+      const existing = currentById.get(String(raw.id));
+      if (existing) {
+        if (locationsEqual(raw, existing)) {
+          result.duplicateCount++;
+        } else {
+          result.conflicts.push({ imported: raw, current: existing, choice: 'keep' });
+        }
+      } else {
+        const nearMatch = current.find(loc => looksLikeDuplicate(raw, loc));
+        if (nearMatch) {
+          result.possibleDuplicates.push({ imported: raw, match: nearMatch, choice: 'skip' });
+        } else {
+          result.newItems.push(raw);
+        }
+      }
+    });
+    return result;
+  }
+
+  function applyImport(result) {
+    const custom = loadCustom();
+    const edits = loadEdits();
+
+    result.newItems.forEach(raw => custom.push(cleanImportedEntry(raw)));
+
+    result.possibleDuplicates.forEach(pd => {
+      if (pd.choice === 'import') custom.push(cleanImportedEntry(pd.imported));
+    });
+
+    result.conflicts.forEach(c => {
+      if (c.choice !== 'imported') return;
+      const id = String(c.current.id);
+      const fields = cleanImportedEntry(c.imported);
+      delete fields.id;
+      if (fileIds.has(id)) {
+        edits[id] = { ...edits[id], ...fields };
+      } else {
+        const idx = custom.findIndex(a => String(a.id) === id);
+        if (idx !== -1) custom[idx] = { ...custom[idx], ...fields, id };
+      }
+    });
+
+    saveCustom(custom);
+    saveEdits(edits);
+    renderMarkers();
+  }
+
+  const importBtn = document.getElementById('importBtn');
+  const importOverlay = document.getElementById('importOverlay');
+  const importClose = document.getElementById('importClose');
+  const importFileInput = document.getElementById('importFileInput');
+  const importTextarea = document.getElementById('importTextarea');
+  const importError = document.getElementById('importError');
+  const importAnalyze = document.getElementById('importAnalyze');
+  const importCancel1 = document.getElementById('importCancel1');
+  const importCancel2 = document.getElementById('importCancel2');
+  const importApply = document.getElementById('importApply');
+  const importStep1 = document.getElementById('importStep1');
+  const importStep2 = document.getElementById('importStep2');
+  const importSummary = document.getElementById('importSummary');
+  const importReviewList = document.getElementById('importReviewList');
+
+  let currentImportResult = null;
+
+  function openImportModal() {
+    importStep1.style.display = 'block';
+    importStep2.style.display = 'none';
+    importFileInput.value = '';
+    importTextarea.value = '';
+    importError.classList.remove('visible');
+    currentImportResult = null;
+    importOverlay.classList.add('visible');
+  }
+  function closeImportModal() { importOverlay.classList.remove('visible'); }
+
+  importBtn.addEventListener('click', openImportModal);
+  importClose.addEventListener('click', closeImportModal);
+  importCancel1.addEventListener('click', closeImportModal);
+  importCancel2.addEventListener('click', closeImportModal);
+  importOverlay.addEventListener('click', e => { if (e.target === importOverlay) closeImportModal(); });
+
+  importFileInput.addEventListener('change', () => {
+    const file = importFileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { importTextarea.value = reader.result; };
+    reader.readAsText(file);
+  });
+
+  function showImportError(msg) {
+    importError.textContent = msg;
+    importError.classList.add('visible');
+  }
+
+  importAnalyze.addEventListener('click', () => {
+    importError.classList.remove('visible');
+    let items;
+    try {
+      items = JSON.parse(importTextarea.value);
+      if (!Array.isArray(items)) throw new Error('Kein Array');
+    } catch (err) {
+      showImportError('Das ist kein gültiges JSON-Array. Bitte eine exportierte Liste einfügen/auswählen (Format wie bei "Liste exportieren").');
+      return;
+    }
+    if (!items.length) {
+      showImportError('Die Liste ist leer.');
+      return;
+    }
+
+    currentImportResult = analyzeImport(items);
+    renderImportReview();
+    importStep1.style.display = 'none';
+    importStep2.style.display = 'flex';
+  });
+
+  function renderImportReview() {
+    const r = currentImportResult;
+    const parts = [];
+    parts.push(`<div class="import-summary-line">✓ <b>${r.newItems.length}</b> neue Standorte werden übernommen</div>`);
+    parts.push(`<div class="import-summary-line">– <b>${r.duplicateCount}</b> bereits identisch vorhanden (übersprungen)</div>`);
+    if (r.conflicts.length) parts.push(`<div class="import-summary-line" style="color:var(--amber);">⚠ <b>${r.conflicts.length}</b> mit Unterschieden – bitte unten prüfen</div>`);
+    if (r.possibleDuplicates.length) parts.push(`<div class="import-summary-line" style="color:var(--point);">? <b>${r.possibleDuplicates.length}</b> mögliche Doppeleinträge – bitte unten prüfen</div>`);
+    if (r.invalidCount) parts.push(`<div class="import-summary-line" style="color:var(--danger);">✕ <b>${r.invalidCount}</b> Einträge ungültig/übersprungen</div>`);
+    importSummary.innerHTML = parts.join('');
+
+    importReviewList.innerHTML = '';
+
+    r.conflicts.forEach((c, i) => {
+      const row = document.createElement('div');
+      row.className = 'import-row';
+      row.innerHTML = `
+        <div class="import-row-title">${escapeHtml(c.current.name)} <span class="import-row-badge conflict">Konflikt</span></div>
+        <div class="import-row-diff">${describeDiff(c.current, c.imported)}</div>
+        <div class="import-row-choice">
+          <label><input type="radio" name="conflict_${i}" value="keep" checked> Lokale Version behalten</label>
+          <label><input type="radio" name="conflict_${i}" value="imported"> Importierte Version übernehmen</label>
+        </div>`;
+      row.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', () => { c.choice = radio.value; });
+      });
+      importReviewList.appendChild(row);
+    });
+
+    r.possibleDuplicates.forEach((pd, i) => {
+      const d = Math.round(distanceMeters(pd.imported.lat, pd.imported.lng, pd.match.lat, pd.match.lng));
+      const row = document.createElement('div');
+      row.className = 'import-row';
+      row.innerHTML = `
+        <div class="import-row-title">${escapeHtml(pd.imported.name)} <span class="import-row-badge possible">Möglicher Doppeleintrag</span></div>
+        <div class="import-row-diff">Ähnlich zu bereits vorhandenem <b>${escapeHtml(pd.match.name)}</b> (${d} m entfernt)</div>
+        <div class="import-row-choice">
+          <label><input type="radio" name="possible_${i}" value="skip" checked> Überspringen (vermutlich derselbe Standort)</label>
+          <label><input type="radio" name="possible_${i}" value="import"> Trotzdem als neuen, separaten Standort importieren</label>
+        </div>`;
+      row.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.addEventListener('change', () => { pd.choice = radio.value; });
+      });
+      importReviewList.appendChild(row);
+    });
+
+    if (!r.conflicts.length && !r.possibleDuplicates.length) {
+      const info = document.createElement('div');
+      info.className = 'list-empty';
+      info.textContent = 'Keine Konflikte oder möglichen Doppeleinträge – einfach unten übernehmen.';
+      importReviewList.appendChild(info);
+    }
+  }
+
+  importApply.addEventListener('click', () => {
+    if (!currentImportResult) return;
+    applyImport(currentImportResult);
+    closeImportModal();
   });
 
   // ---- "Lokale Änderungen zurücksetzen" ----
