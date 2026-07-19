@@ -1,6 +1,7 @@
 {
   "defaultCategory": "automat",
   "categories": {
+    "snack": {"label": "Snacks", "labelPlural": "Snacks", "color": "#ff0000", "shape": "diamond"},
     "automat": { "label": "Automat", "labelPlural": "Automaten", "color": "#f2a900", "shape": "diamond" },
     "laden":   { "label": "Laden",   "labelPlural": "Läden",      "color": "#3fc79a", "shape": "circle"  }
   }
