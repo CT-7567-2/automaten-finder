@@ -593,21 +593,30 @@
     padding: 10px;
   }
   .hours-editor.visible { display: block; }
-  .hours-day-row {
+  .hours-day-wrap {
+    padding: 6px 0;
+  }
+  .hours-day-wrap + .hours-day-wrap { border-top: 1px solid var(--panel-border); }
+  .hours-day-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 0;
   }
-  .hours-day-row + .hours-day-row { border-top: 1px solid var(--panel-border); }
   .hours-day-label {
     width: 30px;
     flex-shrink: 0;
     font-size: 12.5px;
     font-weight: 500;
   }
-  .hours-day-row input[type="checkbox"] { flex-shrink: 0; accent-color: var(--amber); }
-  .hours-day-row input[type="time"] {
+  .hours-day-header input[type="checkbox"] { flex-shrink: 0; accent-color: var(--amber); }
+  .hours-ranges { margin: 6px 0 0 38px; }
+  .hours-range-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .hours-range-row input[type="time"] {
     background: #14171a;
     border: 1px solid var(--panel-border);
     color: var(--text);
@@ -617,8 +626,37 @@
     border-radius: 6px;
     width: 88px;
   }
-  .hours-day-row input[type="time"]:disabled { opacity: 0.35; }
   .hours-day-sep { color: var(--text-dim); font-size: 12px; }
+  .hours-range-remove {
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-size: 11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .hours-range-remove:hover { border-color: var(--danger); color: var(--danger); }
+  .hours-add-range {
+    display: inline-block;
+    background: transparent;
+    border: none;
+    color: var(--point);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 0 4px;
+  }
+  .hours-add-range:hover { text-decoration: underline; }
+  .hours-day-warn {
+    display: none;
+    font-size: 11px;
+    color: var(--amber);
+    margin: -1px 0 6px;
+  }
+  .hours-day-warn.visible { display: block; }
   .hours-hint {
     font-size: 11px;
     color: var(--text-dim);
@@ -807,7 +845,7 @@
     <button type="button" class="hours-toggle-link" id="hoursToggleLink">+ Öffnungszeiten (optional)</button>
     <div class="hours-editor" id="hoursEditor">
       <div id="hoursDayRows"></div>
-      <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet.</div>
+      <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet. Pro Tag sind mehrere Zeitfenster möglich (z.B. 08:00–12:00 und 14:00–18:00).</div>
     </div>
 
     <div class="modal-actions">
@@ -920,6 +958,7 @@
     { code: 'so', label: 'So' }
   ];
   const JS_DAY_TO_CODE = ['so', 'mo', 'di', 'mi', 'do', 'fr', 'sa']; // Date.getDay(): 0=Sonntag
+  const NEXT_DAY_CODE = { mo: 'di', di: 'mi', mi: 'do', do: 'fr', fr: 'sa', sa: 'so', so: 'mo' };
 
   // ============================================================
   // STANDORTE: Der gemeinsame Startbestand steht in automaten.json
@@ -946,6 +985,17 @@
   // gilt der Standort als durchgehend (24/7) geöffnet — praktisch für
   // Automaten, die nie schließen. Die Öffnungszeiten gelten dabei für
   // den gesamten Standort (nicht separat je Kategorie).
+  //
+  // "00:00" als Ende eines Zeitfensters bedeutet "bis Mitternacht"
+  // (Tagesende), nicht Tagesbeginn. Geht ein Zeitfenster über
+  // Mitternacht hinaus (z.B. 22:00–02:00), teilt der Öffnungszeiten-
+  // Editor in der App das automatisch auf zwei Tage auf, z.B.:
+  //   "mo": [["22:00","00:00"]],
+  //   "di": [["00:00","02:00"]]
+  // Wird "hours" direkt in dieser Datei von Hand bearbeitet, kann man
+  // eine über Mitternacht gehende Zeit alternativ auch unaufgeteilt
+  // in einem einzigen Eintrag lassen (z.B. "mo": [["22:00","02:00"]])
+  // — das wird als Fallback ebenfalls korrekt erkannt.
   // ============================================================
   let seedAutomaten = [];
   let fileIds = new Set();
@@ -987,9 +1037,14 @@
       const [oh, om] = open.split(':').map(Number);
       const [ch, cm] = close.split(':').map(Number);
       const openMin = oh * 60 + om;
-      const closeMin = ch * 60 + cm;
+      // "00:00" als Ende bedeutet "bis Mitternacht" (Tagesende), nicht
+      // Tagesbeginn – deshalb hier als 24:00 (1440 Minuten) gewertet.
+      let closeMin = ch * 60 + cm;
+      if (closeMin === 0) closeMin = 24 * 60;
       if (closeMin <= openMin) {
-        // über Mitternacht hinaus geöffnet (z.B. 20:00–02:00)
+        // Fallback für manuell in der JSON eingetragene Zeiten, die
+        // direkt über Mitternacht hinausgehen (z.B. "22:00"–"02:00"
+        // ohne Aufteilung auf zwei Tage).
         return nowMin >= openMin || nowMin < closeMin;
       }
       return nowMin >= openMin && nowMin < closeMin;
@@ -1516,12 +1571,52 @@
   }
 
   // ---- Öffnungszeiten-Editor (Tag-Zeilen) ----
+  let dayState = {}; // day.code -> { checkbox, rangesBox, addBtn, entries: [] }
+
+  function createRangeRow(openVal, closeVal, onRemove) {
+    const rowWrap = document.createElement('div');
+
+    const row = document.createElement('div');
+    row.className = 'hours-range-row';
+
+    const openInput = document.createElement('input');
+    openInput.type = 'time';
+    openInput.value = openVal || '09:00';
+
+    const sep = document.createElement('span');
+    sep.className = 'hours-day-sep';
+    sep.textContent = '–';
+
+    const closeInput = document.createElement('input');
+    closeInput.type = 'time';
+    closeInput.value = closeVal || '20:00';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'hours-range-remove';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Zeitfenster entfernen';
+
+    row.appendChild(openInput);
+    row.appendChild(sep);
+    row.appendChild(closeInput);
+    row.appendChild(removeBtn);
+    rowWrap.appendChild(row);
+
+    const entry = { rowWrap, openInput, closeInput };
+    removeBtn.addEventListener('click', () => onRemove(entry));
+    return entry;
+  }
+
   function renderHoursDayRows() {
     hoursDayRows.innerHTML = '';
+    dayState = {};
     WEEKDAYS.forEach(day => {
-      const row = document.createElement('div');
-      row.className = 'hours-day-row';
-      row.dataset.day = day.code;
+      const wrap = document.createElement('div');
+      wrap.className = 'hours-day-wrap';
+
+      const header = document.createElement('div');
+      header.className = 'hours-day-header';
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -1532,31 +1627,49 @@
       label.htmlFor = checkbox.id;
       label.textContent = day.label;
 
-      const openInput = document.createElement('input');
-      openInput.type = 'time';
-      openInput.value = '09:00';
-      openInput.disabled = true;
+      header.appendChild(checkbox);
+      header.appendChild(label);
 
-      const sep = document.createElement('span');
-      sep.className = 'hours-day-sep';
-      sep.textContent = '–';
+      const rangesBox = document.createElement('div');
+      rangesBox.className = 'hours-ranges';
+      rangesBox.style.display = 'none';
 
-      const closeInput = document.createElement('input');
-      closeInput.type = 'time';
-      closeInput.value = '20:00';
-      closeInput.disabled = true;
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'hours-add-range';
+      addBtn.textContent = '+ weiteres Zeitfenster';
+      rangesBox.appendChild(addBtn);
+
+      const state = { checkbox, rangesBox, addBtn, entries: [] };
+      dayState[day.code] = state;
+
+      function addRange(openVal, closeVal) {
+        const entry = createRangeRow(openVal, closeVal, e => {
+          state.entries = state.entries.filter(x => x !== e);
+          e.rowWrap.remove();
+          if (state.entries.length === 0) {
+            checkbox.checked = false;
+            rangesBox.style.display = 'none';
+          }
+        });
+        state.entries.push(entry);
+        rangesBox.insertBefore(entry.rowWrap, addBtn);
+      }
 
       checkbox.addEventListener('change', () => {
-        openInput.disabled = !checkbox.checked;
-        closeInput.disabled = !checkbox.checked;
+        if (checkbox.checked) {
+          rangesBox.style.display = 'block';
+          if (state.entries.length === 0) addRange('09:00', '20:00');
+        } else {
+          rangesBox.style.display = 'none';
+        }
       });
 
-      row.appendChild(checkbox);
-      row.appendChild(label);
-      row.appendChild(openInput);
-      row.appendChild(sep);
-      row.appendChild(closeInput);
-      hoursDayRows.appendChild(row);
+      addBtn.addEventListener('click', () => addRange('09:00', '20:00'));
+
+      wrap.appendChild(header);
+      wrap.appendChild(rangesBox);
+      hoursDayRows.appendChild(wrap);
     });
   }
 
@@ -1570,26 +1683,51 @@
   function collectHoursFromEditor() {
     const hours = {};
     let any = false;
-    [...hoursDayRows.children].forEach(row => {
-      const checkbox = row.querySelector('input[type="checkbox"]');
-      if (!checkbox.checked) return;
-      const [openInput, closeInput] = row.querySelectorAll('input[type="time"]');
-      if (!openInput.value || !closeInput.value) return;
-      hours[row.dataset.day] = [[openInput.value, closeInput.value]];
-      any = true;
+
+    function pushRange(dayCode, open, close) {
+      if (!hours[dayCode]) hours[dayCode] = [];
+      hours[dayCode].push([open, close]);
+    }
+
+    WEEKDAYS.forEach(day => {
+      const state = dayState[day.code];
+      if (!state.checkbox.checked) return;
+      state.entries.forEach(e => {
+        const open = e.openInput.value;
+        const close = e.closeInput.value;
+        if (!open || !close) return;
+        any = true;
+
+        if (close === '00:00') {
+          // "bis Mitternacht" – kein Aufteilen nötig, direkt so übernehmen.
+          pushRange(day.code, open, close);
+          return;
+        }
+        const [oh, om] = open.split(':').map(Number);
+        const [ch, cm] = close.split(':').map(Number);
+        const openMin = oh * 60 + om;
+        const closeMin = ch * 60 + cm;
+        if (closeMin <= openMin) {
+          // Geht über Mitternacht hinaus (z.B. 22:00–02:00): automatisch
+          // aufteilen in "bis Mitternacht" am aktuellen Tag und "ab
+          // Mitternacht" am Folgetag.
+          pushRange(day.code, open, '00:00');
+          pushRange(NEXT_DAY_CODE[day.code], '00:00', close);
+        } else {
+          pushRange(day.code, open, close);
+        }
+      });
     });
     return any ? hours : null;
   }
 
   function resetHoursEditor() {
-    [...hoursDayRows.children].forEach(row => {
-      const checkbox = row.querySelector('input[type="checkbox"]');
-      const [openInput, closeInput] = row.querySelectorAll('input[type="time"]');
-      checkbox.checked = false;
-      openInput.disabled = true;
-      closeInput.disabled = true;
-      openInput.value = '09:00';
-      closeInput.value = '20:00';
+    WEEKDAYS.forEach(day => {
+      const state = dayState[day.code];
+      state.checkbox.checked = false;
+      state.rangesBox.style.display = 'none';
+      state.entries.forEach(e => e.rowWrap.remove());
+      state.entries = [];
     });
     hoursEditor.classList.remove('visible');
     hoursToggleLink.textContent = '+ Öffnungszeiten (optional)';
