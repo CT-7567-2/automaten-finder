@@ -1,35 +1,113 @@
 [
   {
-    "id": "1", "name": "Automat Jettenburg", "type": "automat", "note": "",
-    "lat": 48.5011, "lng": 9.1275
-  },
-{
-    "id": "2", "name": "Automat Oferdingen", "type": "automat", "note": "",
-    "lat": 48.5491, "lng": 9.2076
-  },  
-{
-    "id": "3", "name": "Automat Reicheneck", "type": "automat", "note": "",
-    "lat": 48.5394, "lng": 9.2328
+    "id": "1",
+    "name": "Automat Jettenburg",
+    "type": "automat",
+    "note": "",
+    "lat": 48.5011,
+    "lng": 9.1275
   },
   {
-    "id": "4", "name": "Kaufland", "type": "laden", "note": "",
+    "id": "2",
+    "name": "Automat Oferdingen",
+    "type": "automat",
+    "note": "",
+    "lat": 48.5491,
+    "lng": 9.2076
+  },
+  {
+    "id": "3",
+    "name": "Automat Reicheneck",
+    "type": "automat",
+    "note": "",
+    "lat": 48.5394,
+    "lng": 9.2328
+  },
+  {
+    "id": "4",
+    "name": "Kaufland",
+    "type": "laden",
+    "note": "",
+    "lat": 48.5258,
+    "lng": 9.1446,
     "hours": {
-      "mo": [["07:00","22:00"]],
-      "di": [["07:00","22:00"]],
-      "mi": [["07:00","22:00"]],
-      "do": [["07:00","22:00"]],
-      "fr": [["07:00","22:00"]],
-      "sa": [["07:00","22:00"]],
+      "mo": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
+      "di": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
+      "mi": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
+      "do": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
+      "fr": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
+      "sa": [
+        [
+          "07:00",
+          "22:00"
+        ]
+      ],
       "so": []
-    },
-    "lat": 48.5258, "lng": 9.1446
-  },
- {
-    "id": "5", "name": "Automat Kusterdingen", "type": "automat", "note": "",
-    "lat": 48.5200, "lng": 9.1210
+    }
   },
   {
-    "id": "6", "name": "Automat Kusterdingen", "type": "automat", "note": "Beim Döner",
-    "lat": 48.52066, "lng": 9.11999
+    "id": "5",
+    "name": "Automat Kusterdingen",
+    "type": "automat",
+    "note": "",
+    "lat": 48.52,
+    "lng": 9.121
+  },
+  {
+    "id": "6",
+    "name": "Automat Kusterdingen",
+    "type": "automat",
+    "note": "Beim Döner",
+    "lat": 48.52066,
+    "lng": 9.11999
+  },
+  {
+    "id": "79233806-7ac6-40b3-8f02-cf810186d78f",
+    "name": "Snack Automat Jettenburg",
+    "type": "snack",
+    "note": "",
+    "lat": 48.50245,
+    "lng": 9.12657
+  },
+  {
+    "id": "c904abcd-fd41-43c1-9849-47bdee52ea43",
+    "name": "Snack Automat Oferdingen",
+    "type": "snack",
+    "note": "",
+    "lat": 48.54954,
+    "lng": 9.20783
+  },
+  {
+    "id": "20ef7ccc-ca62-43a1-b989-469b073cf281",
+    "name": "Snack Automat Sportplatz",
+    "type": "snack",
+    "note": "Heineken Emblem",
+    "lat": 48.54305,
+    "lng": 9.21179
   }
 ]
