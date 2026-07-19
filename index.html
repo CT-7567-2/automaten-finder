@@ -610,6 +610,16 @@
   }
   .hours-day-header input[type="checkbox"] { flex-shrink: 0; accent-color: var(--amber); }
   .hours-ranges { margin: 6px 0 0 38px; }
+  .hours-allday-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text);
+    padding-bottom: 8px;
+    cursor: pointer;
+  }
+  .hours-allday-row input[type="checkbox"] { accent-color: var(--amber); }
   .hours-range-row {
     display: flex;
     align-items: center;
@@ -872,8 +882,14 @@
   }
   .diff-field-label { color: var(--text-dim); }
   .diff-hours-day { display: inline-block; width: 22px; color: var(--text-dim); }
-  .diff-before { color: var(--text-dim); text-decoration: line-through; }
-  .diff-after { color: var(--text); font-weight: 500; }
+  .diff-before { color: var(--text-dim); }
+  .diff-after {
+    color: var(--text);
+    font-weight: 600;
+    background: rgba(242,169,0,0.14);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
 
   .import-row-map-btn {
     align-self: flex-start;
@@ -1809,35 +1825,59 @@
       rangesBox.className = 'hours-ranges';
       rangesBox.style.display = 'none';
 
+      const allDayRow = document.createElement('label');
+      allDayRow.className = 'hours-allday-row';
+      const allDayCheckbox = document.createElement('input');
+      allDayCheckbox.type = 'checkbox';
+      allDayRow.appendChild(allDayCheckbox);
+      allDayRow.appendChild(document.createTextNode('Ganztägig geöffnet (24h)'));
+      rangesBox.appendChild(allDayRow);
+
+      const rangesListWrap = document.createElement('div');
+      rangesBox.appendChild(rangesListWrap);
+
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'hours-add-range';
       addBtn.textContent = '+ weiteres Zeitfenster';
-      rangesBox.appendChild(addBtn);
+      rangesListWrap.appendChild(addBtn);
 
-      const state = { checkbox, rangesBox, addBtn, entries: [] };
+      const state = { checkbox, allDayCheckbox, rangesBox, rangesListWrap, addBtn, entries: [] };
       dayState[day.code] = state;
 
       function addRange(openVal, closeVal) {
         const entry = createRangeRow(openVal, closeVal, e => {
           state.entries = state.entries.filter(x => x !== e);
           e.rowWrap.remove();
-          if (state.entries.length === 0) {
+          if (state.entries.length === 0 && !allDayCheckbox.checked) {
             checkbox.checked = false;
             rangesBox.style.display = 'none';
           }
         });
         state.entries.push(entry);
-        rangesBox.insertBefore(entry.rowWrap, addBtn);
+        rangesListWrap.insertBefore(entry.rowWrap, addBtn);
       }
       state.addRange = addRange;
 
       checkbox.addEventListener('change', () => {
         if (checkbox.checked) {
           rangesBox.style.display = 'block';
-          if (state.entries.length === 0) addRange('09:00', '20:00');
+          if (!allDayCheckbox.checked && state.entries.length === 0) addRange('09:00', '20:00');
         } else {
           rangesBox.style.display = 'none';
+        }
+      });
+
+      // "Ganztägig geöffnet" ersetzt die Zeitfenster-Eingabe für diesen
+      // Tag, damit man nicht "00:00–00:00" eintragen muss, um einen
+      // einzelnen 24h-Tag zu markieren (praktisch, wenn ein Standort
+      // z.B. nur freitags/samstags durchgehend geöffnet hat).
+      allDayCheckbox.addEventListener('change', () => {
+        if (allDayCheckbox.checked) {
+          rangesListWrap.style.display = 'none';
+        } else {
+          rangesListWrap.style.display = 'block';
+          if (state.entries.length === 0) addRange('09:00', '20:00');
         }
       });
 
@@ -1868,6 +1908,13 @@
     WEEKDAYS.forEach(day => {
       const state = dayState[day.code];
       if (!state.checkbox.checked) return;
+
+      if (state.allDayCheckbox.checked) {
+        pushRange(day.code, '00:00', '00:00'); // = ganztägig (siehe isOpenNow)
+        any = true;
+        return;
+      }
+
       state.entries.forEach(e => {
         const open = e.openInput.value;
         const close = e.closeInput.value;
@@ -1901,6 +1948,8 @@
     WEEKDAYS.forEach(day => {
       const state = dayState[day.code];
       state.checkbox.checked = false;
+      state.allDayCheckbox.checked = false;
+      state.rangesListWrap.style.display = 'block';
       state.rangesBox.style.display = 'none';
       state.entries.forEach(e => e.rowWrap.remove());
       state.entries = [];
@@ -1922,7 +1971,13 @@
       const state = dayState[day.code];
       state.checkbox.checked = true;
       state.rangesBox.style.display = 'block';
-      ranges.forEach(([o, c]) => state.addRange(o, c));
+      const isAllDay = ranges.length === 1 && ranges[0][0] === '00:00' && ranges[0][1] === '00:00';
+      if (isAllDay) {
+        state.allDayCheckbox.checked = true;
+        state.rangesListWrap.style.display = 'none';
+      } else {
+        ranges.forEach(([o, c]) => state.addRange(o, c));
+      }
       any = true;
     });
     if (any) {
