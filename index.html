@@ -1440,9 +1440,40 @@
       routeLink.rel = 'noopener';
       routeLink.textContent = 'Route (mein Standort) →';
 
+      // Direktlink zu genau diesem Standort teilen — praktisch, um
+      // jemandem gezielt "kannst du den hier löschen/bearbeiten"
+      // zu schicken, statt den Standort erst suchen zu müssen.
+      const shareBtn = document.createElement('button');
+      shareBtn.className = 'popup-route-link';
+      shareBtn.type = 'button';
+      shareBtn.textContent = 'Link teilen';
+      shareBtn.addEventListener('click', async () => {
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        url.searchParams.set('id', a.id);
+        const shareUrl = url.toString();
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: a.name, text: `${a.name} – Automat-Finder`, url: shareUrl });
+            return;
+          } catch {
+            // Abgebrochen oder nicht unterstützt — auf Kopieren zurückfallen
+          }
+        }
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          shareBtn.textContent = 'Link kopiert ✓';
+        } catch {
+          shareBtn.textContent = shareUrl;
+        }
+        setTimeout(() => { shareBtn.textContent = 'Link teilen'; }, 2200);
+      });
+
       const actions = document.createElement('div');
       actions.className = 'popup-actions';
       actions.appendChild(routeLink);
+      actions.appendChild(shareBtn);
       actions.appendChild(editBtn);
       actions.appendChild(unavailBtn);
       actions.appendChild(delBtn);
@@ -1571,6 +1602,24 @@
       map.setView([seedAutomaten[0].lat, seedAutomaten[0].lng], (CONFIG.map && CONFIG.map.defaultZoom) || 14);
     }
     renderMarkers();
+
+    // ---- Direktlink zu einem einzelnen Standort (?id=...) ----
+    // Praktisch zum Teilen, z.B. "Kannst du den hier löschen" –
+    // öffnet die Seite direkt gezoomt auf den Standort mit offenem
+    // Popup, in dem auch gleich der Löschen-Button sichtbar ist.
+    const requestedId = new URLSearchParams(window.location.search).get('id');
+    if (requestedId) {
+      const target = getVisibleAutomaten().find(a => a.id === requestedId);
+      if (target) {
+        map.setView([target.lat, target.lng], 18);
+        // Popup erst öffnen, sobald der Marker/das Popup-DOM wirklich
+        // existiert (kurzer Timeout reicht, da renderMarkers synchron
+        // vorher abgeschlossen ist).
+        setTimeout(() => markerRefs[requestedId]?.openPopup(), 50);
+      } else {
+        showError('Der Standort aus dem Link wurde nicht gefunden – vermutlich wurde er bereits gelöscht oder ist gerade herausgefiltert.');
+      }
+    }
   }
   init();
 
