@@ -148,11 +148,19 @@
     display: flex;
     gap: 8px;
     margin-bottom: 10px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 3px;
   }
+  .legend-row::-webkit-scrollbar { height: 4px; }
+  .legend-row::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+  .legend-row::-webkit-scrollbar-track { background: transparent; }
 
   .legend-chip {
-    flex: 1;
+    flex: 0 0 auto;
     min-width: 90px;
     display: flex;
     align-items: center;
@@ -164,9 +172,10 @@
     font-family: 'Inter', sans-serif;
     font-size: 12.5px;
     font-weight: 500;
-    padding: 7px 8px;
+    padding: 7px 12px;
     border-radius: 8px;
     cursor: pointer;
+    white-space: nowrap;
     transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
 
@@ -262,6 +271,14 @@
   }
   .export-link:hover { color: var(--point); }
   #resetBtn:hover { color: var(--danger); }
+
+  .more-options {
+    display: none;
+  }
+  .more-options.visible {
+    display: block;
+  }
+  .more-options .export-link:first-child { margin-top: 4px; }
 
   .result {
     position: relative;
@@ -947,9 +964,12 @@
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
     <button class="mode-btn secondary" id="addBtn">Standort<br>hinzufügen</button>
   </div>
-  <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
-  <button class="export-link" id="importBtn">Liste importieren (von anderem Export)</button>
-  <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
+  <button type="button" class="hours-toggle-link" id="moreToggleLink" style="padding-top:2px;">+ Mehr Optionen (Export, Import, Zurücksetzen)</button>
+  <div class="more-options" id="moreOptions">
+    <button class="export-link" id="exportBtn">Liste exportieren (für alle übernehmen)</button>
+    <button class="export-link" id="importBtn">Liste importieren (von anderem Export)</button>
+    <button class="export-link" id="resetBtn">Lokale Änderungen zurücksetzen</button>
+  </div>
   <div class="error-msg" id="errorMsg"></div>
   <div class="result" id="result">
     <button class="result-close" id="resultClose" aria-label="Schließen">✕</button>
@@ -2212,6 +2232,16 @@
     mapHideUnavailable = !mapHideUnavailable;
     mapUnavailableToggle.classList.toggle('active', mapHideUnavailable);
     renderMarkers();
+  });
+
+  // ---- "Mehr Optionen" (Export/Import/Zurücksetzen) einklappbar ----
+  const moreToggleLink = document.getElementById('moreToggleLink');
+  const moreOptions = document.getElementById('moreOptions');
+  moreToggleLink.addEventListener('click', () => {
+    const isOpen = moreOptions.classList.toggle('visible');
+    moreToggleLink.textContent = isOpen
+      ? '– Mehr Optionen einklappen'
+      : '+ Mehr Optionen (Export, Import, Zurücksetzen)';
   });
 
   // ---- "Liste exportieren" ----
