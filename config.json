@@ -1,7 +1,7 @@
 {
   "map": {
-    "defaultZoom": 14,
-    "defaultCenter": { "lat": 52.5200, "lng": 13.4040 }
+    "defaultZoom": 12,
+    "defaultCenter": { "lat": 48.5196, "lng": 9.1748 }
   },
 
   "radiusOptions": [
