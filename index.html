@@ -451,6 +451,7 @@
   .status-dot.open { background: var(--open-color); }
   .status-dot.closed { background: var(--closed-color); }
   .status-dot.always { background: var(--text-dim); }
+  .status-dot.unavailable { background: var(--danger); }
 
   .hours-full-list {
     margin-top: 2px;
@@ -940,6 +941,7 @@
 <div class="panel">
   <div class="legend-row" id="mapFilterRow"></div>
   <button class="toggle-btn" id="mapOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
+  <button class="toggle-btn" id="mapUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
   <div class="mode-row">
     <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
@@ -981,6 +983,11 @@
       <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet. Pro Tag sind mehrere Zeitfenster möglich (z.B. 08:00–12:00 und 14:00–18:00).</div>
     </div>
 
+    <label class="hours-allday-row" style="margin-top:2px;">
+      <input type="checkbox" id="modalUnavailable">
+      Vorübergehend nicht verfügbar (z.B. defekt/leer)
+    </label>
+
     <div class="modal-actions">
       <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
       <button class="modal-btn save" id="modalSave">Speichern</button>
@@ -999,7 +1006,8 @@
     <textarea id="exportTextarea" class="modal-input" style="height:180px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:none;" readonly></textarea>
     <div class="modal-actions">
       <button class="modal-btn cancel" id="exportClose">Schließen</button>
-      <button class="modal-btn save" id="exportCopy">In Zwischenablage kopieren</button>
+      <button class="modal-btn cancel" id="exportDownload">Datei herunterladen</button>
+      <button class="modal-btn save" id="exportCopy">Kopieren</button>
     </div>
   </div>
 </div>
@@ -1047,6 +1055,7 @@
     <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name oder Notiz …">
     <div class="legend-row" id="listFilterRow"></div>
     <button class="toggle-btn" id="listOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
+    <button class="toggle-btn" id="listUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
     <div class="radius-row" id="listRadiusRow"></div>
     <div class="list-items" id="listItems"></div>
   </div>
@@ -1205,7 +1214,7 @@
     const combined = [...seedWithEdits, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null }));
+      .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null, unavailable: !!a.unavailable }));
   }
 
   // ---- Öffnungszeiten-Logik ----
@@ -1291,9 +1300,11 @@
   // Filter für die KARTE (steuert auch die Nächster-Standort-Suche)
   let activeTypes = new Set();
   let mapOpenOnly = false;
+  let mapHideUnavailable = false;
   // Unabhängige Filter für die LISTE
   let listActiveTypes = new Set();
   let listOpenOnly = false;
+  let listHideUnavailable = false;
 
   // ============================================================
   // Karte initialisieren (vorläufige Ansicht, bis config.json geladen ist)
@@ -1347,13 +1358,18 @@
     markerLayer.clearLayers();
     markerRefs = {};
     const all = getVisibleAutomaten();
-    const list = all.filter(a => a.types.some(t => activeTypes.has(t)) && (!mapOpenOnly || isOpenNow(a)));
+    const list = all.filter(a =>
+      a.types.some(t => activeTypes.has(t)) &&
+      (!mapOpenOnly || isOpenNow(a)) &&
+      (!mapHideUnavailable || !a.unavailable)
+    );
     document.getElementById('countPill').textContent =
       all.length + (all.length === 1 ? ' Standort' : ' Standorte');
 
     list.forEach(a => {
       const open = isOpenNow(a);
-      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.types, a.hours && !open) });
+      const dimmed = (a.hours && !open) || a.unavailable;
+      const m = L.marker([a.lat, a.lng], { icon: makeCategoryIcon(a.types, dimmed) });
       m._categoryTypes = a.types;
 
       const popupEl = document.createElement('div');
@@ -1365,11 +1381,13 @@
       const statusLine = document.createElement('div');
       statusLine.className = 'status-line';
       const statusDot = document.createElement('span');
-      statusDot.className = 'status-dot ' + (a.hours ? (open ? 'open' : 'closed') : 'always');
+      statusDot.className = 'status-dot ' + (a.unavailable ? 'unavailable' : (a.hours ? (open ? 'open' : 'closed') : 'always'));
       const statusText = document.createElement('span');
-      statusText.textContent = a.hours
-        ? (open ? (CONFIG.texts.statusOpenLabel || 'Geöffnet') : (CONFIG.texts.statusClosedLabel || 'Geschlossen')) + ' · ' + todayHoursText(a)
-        : (CONFIG.texts.statusAlwaysLabel || 'Durchgehend geöffnet');
+      statusText.textContent = a.unavailable
+        ? (CONFIG.texts.statusUnavailableLabel || 'Vorübergehend nicht verfügbar')
+        : (a.hours
+          ? (open ? (CONFIG.texts.statusOpenLabel || 'Geöffnet') : (CONFIG.texts.statusClosedLabel || 'Geschlossen')) + ' · ' + todayHoursText(a)
+          : (CONFIG.texts.statusAlwaysLabel || 'Durchgehend geöffnet'));
       statusLine.appendChild(statusDot);
       statusLine.appendChild(statusText);
       popupEl.appendChild(statusLine);
@@ -1383,6 +1401,12 @@
       editBtn.type = 'button';
       editBtn.textContent = 'Bearbeiten';
       editBtn.addEventListener('click', () => { map.closePopup(); openEditModal(a); });
+
+      const unavailBtn = document.createElement('button');
+      unavailBtn.className = 'popup-route-link';
+      unavailBtn.type = 'button';
+      unavailBtn.textContent = a.unavailable ? 'Wieder verfügbar melden' : 'Als nicht verfügbar melden';
+      unavailBtn.addEventListener('click', () => { map.closePopup(); setUnavailable(a.id, !a.unavailable); });
 
       const delBtn = document.createElement('button');
       delBtn.className = 'popup-delete';
@@ -1400,6 +1424,7 @@
       actions.className = 'popup-actions';
       actions.appendChild(routeLink);
       actions.appendChild(editBtn);
+      actions.appendChild(unavailBtn);
       actions.appendChild(delBtn);
       popupEl.appendChild(actions);
 
@@ -1430,6 +1455,24 @@
     resultEl.classList.remove('visible');
   }
 
+  // Schneller Umschalter für "vorübergehend nicht verfügbar" direkt aus
+  // dem Popup, ohne den ganzen Bearbeiten-Dialog zu öffnen. Funktioniert
+  // wie deleteAutomat sowohl für Datei-Standorte (als lokale Über-
+  // schreibung) als auch für lokal hinzugefügte Standorte.
+  function setUnavailable(id, value) {
+    if (fileIds.has(id)) {
+      const edits = loadEdits();
+      edits[id] = { ...edits[id], unavailable: value };
+      saveEdits(edits);
+    } else {
+      const custom = loadCustom();
+      const idx = custom.findIndex(a => a.id === id);
+      if (idx !== -1) { custom[idx] = { ...custom[idx], unavailable: value }; saveCustom(custom); }
+    }
+    renderMarkers();
+    if (listOverlay.classList.contains('visible')) renderList(listSearch.value);
+  }
+
   function applyTexts() {
     const t = CONFIG.texts || {};
     if (t.appTitle) document.getElementById('brandTitle').textContent = t.appTitle;
@@ -1443,6 +1486,10 @@
     if (t.openToggleLabel) {
       document.querySelectorAll('#mapOpenToggle .toggle-label, #listOpenToggle .toggle-label')
         .forEach(el => el.textContent = t.openToggleLabel);
+    }
+    if (t.unavailableToggleLabel) {
+      document.querySelectorAll('#mapUnavailableToggle .toggle-label, #listUnavailableToggle .toggle-label')
+        .forEach(el => el.textContent = t.unavailableToggleLabel);
     }
   }
 
@@ -1632,7 +1679,14 @@
 
   function findNearestFrom(fromLat, fromLng, label) {
     lastSearch = { lat: fromLat, lng: fromLng, label };
-    const list = getVisibleAutomaten().filter(a => a.types.some(t => activeTypes.has(t)) && (!mapOpenOnly || isOpenNow(a)));
+    // "Vorübergehend nicht verfügbar" markierte Standorte werden hier
+    // unabhängig vom Ausblenden-Filter nie vorgeschlagen — die Karte/
+    // Liste zeigt sie zwar noch (abgeblendet) zur Info, aber als
+    // "nächster Automat" empfehlen ergibt bei einem als kaputt
+    // gemeldeten Standort keinen Sinn.
+    const list = getVisibleAutomaten().filter(a =>
+      a.types.some(t => activeTypes.has(t)) && (!mapOpenOnly || isOpenNow(a)) && !a.unavailable
+    );
     Object.values(markerRefs).forEach(m => applyNearestState(m.getElement()?.querySelector('.marker-dot'), m._categoryTypes, false));
 
     let nearest = null;
@@ -1706,6 +1760,7 @@
   const modalTypeRow = document.getElementById('modalTypeRow');
   const modalInput = document.getElementById('modalInput');
   const modalNote = document.getElementById('modalNote');
+  const modalUnavailable = document.getElementById('modalUnavailable');
   const modalSave = document.getElementById('modalSave');
   const modalCancel = document.getElementById('modalCancel');
   const hoursToggleLink = document.getElementById('hoursToggleLink');
@@ -1998,6 +2053,7 @@
     modalCoords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     modalInput.value = '';
     modalNote.value = '';
+    modalUnavailable.checked = false;
     resetHoursEditor();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
     renderModalTypeChips();
@@ -2017,6 +2073,7 @@
     modalCoords.textContent = `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (Position unverändert)`;
     modalInput.value = loc.name || '';
     modalNote.value = loc.note || '';
+    modalUnavailable.checked = !!loc.unavailable;
     populateHoursEditor(loc.hours);
     pendingTypes = new Set(loc.types && loc.types.length ? loc.types : [DEFAULT_CATEGORY]);
     renderModalTypeChips();
@@ -2045,9 +2102,10 @@
     const name = modalInput.value.trim() || ('Neuer ' + CATEGORIES[typesArr[0]].label);
     const note = modalNote.value.trim();
     const hours = collectHoursFromEditor();
+    const unavailable = modalUnavailable.checked;
 
     if (modalMode === 'edit' && editingId) {
-      const fields = { name, type: typesArr.join(','), note };
+      const fields = { name, type: typesArr.join(','), note, unavailable };
       // "hours" nur setzen, wenn vorhanden, sonst explizit entfernen
       // (leeres/undefiniertes Feld = durchgehend geöffnet).
       fields.hours = hours || undefined;
@@ -2077,6 +2135,7 @@
         lng: Math.round(pendingCoords.lng * 100000) / 100000
       };
       if (hours) entry.hours = hours;
+      if (unavailable) entry.unavailable = true;
       custom.push(entry);
       saveCustom(custom);
     }
@@ -2148,17 +2207,26 @@
     }
   });
 
+  const mapUnavailableToggle = document.getElementById('mapUnavailableToggle');
+  mapUnavailableToggle.addEventListener('click', () => {
+    mapHideUnavailable = !mapHideUnavailable;
+    mapUnavailableToggle.classList.toggle('active', mapHideUnavailable);
+    renderMarkers();
+  });
+
   // ---- "Liste exportieren" ----
   const exportBtn = document.getElementById('exportBtn');
   const exportOverlay = document.getElementById('exportOverlay');
   const exportTextarea = document.getElementById('exportTextarea');
   const exportClose = document.getElementById('exportClose');
+  const exportDownload = document.getElementById('exportDownload');
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, types, note, hours, lat, lng }) => {
+    const list = getVisibleAutomaten().map(({ id, name, types, note, hours, unavailable, lat, lng }) => {
       const entry = { id, name, type: types.join(','), note, lat, lng };
       if (hours) entry.hours = hours;
+      if (unavailable) entry.unavailable = true;
       return entry;
     });
     exportTextarea.value = JSON.stringify(list, null, 2);
@@ -2172,11 +2240,33 @@
     try {
       await navigator.clipboard.writeText(exportTextarea.value);
       exportCopy.textContent = 'Kopiert ✓';
-      setTimeout(() => { exportCopy.textContent = 'In Zwischenablage kopieren'; }, 1800);
+      setTimeout(() => { exportCopy.textContent = 'Kopieren'; }, 1800);
     } catch {
       exportTextarea.select();
       document.execCommand('copy');
     }
+  });
+
+  // Lädt den aktuellen Export-Stand als echte .json-Datei herunter
+  // (z.B. zum Sichern, oder um sie jemandem zu schicken, statt den
+  // Text manuell zu kopieren/einzufügen).
+  exportDownload.addEventListener('click', () => {
+    const blob = new Blob([exportTextarea.value], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const dateStamp = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+      .map((n, i) => i === 0 ? n : String(n).padStart(2, '0')).join('-'); // YYYY-MM-DD (lokal)
+    const timeStamp = [now.getHours(), now.getMinutes(), now.getSeconds()]
+      .map(n => String(n).padStart(2, '0')).join(''); // HHMMSS (lokal)
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `automaten-export-${dateStamp}-${timeStamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    exportDownload.textContent = 'Heruntergeladen ✓';
+    setTimeout(() => { exportDownload.textContent = 'Datei herunterladen'; }, 1800);
   });
 
   // ============================================================
@@ -2204,6 +2294,7 @@
       type: parseTypes(loc.type).slice().sort().join(','),
       note: String(loc.note || '').trim(),
       hours: loc.hours ? JSON.stringify(loc.hours) : null,
+      unavailable: !!loc.unavailable,
       lat: Math.round((Number(loc.lat) || 0) * 100000) / 100000,
       lng: Math.round((Number(loc.lng) || 0) * 100000) / 100000
     };
@@ -2212,7 +2303,7 @@
   function locationsEqual(a, b) {
     const ca = canonicalizeForCompare(a), cb = canonicalizeForCompare(b);
     return ca.name === cb.name && ca.type === cb.type && ca.note === cb.note &&
-      ca.hours === cb.hours && ca.lat === cb.lat && ca.lng === cb.lng;
+      ca.hours === cb.hours && ca.unavailable === cb.unavailable && ca.lat === cb.lat && ca.lng === cb.lng;
   }
 
   function formatDayRanges(ranges) {
@@ -2246,6 +2337,10 @@
     if (cc.note !== ci.note) fields.push({ label: 'Notiz', before: cc.note || '–', after: ci.note || '–' });
     if (cc.hours !== ci.hours) {
       fields.push({ label: 'Öffnungszeiten', isHours: true, rows: hoursDiffRows(current.hours, imported.hours) });
+    }
+    if (cc.unavailable !== ci.unavailable) {
+      const label = v => v ? 'Vorübergehend nicht verfügbar' : 'Verfügbar';
+      fields.push({ label: 'Status', before: label(cc.unavailable), after: label(ci.unavailable) });
     }
     if (cc.lat !== ci.lat || cc.lng !== ci.lng) {
       fields.push({ label: 'Position', before: `${cc.lat}, ${cc.lng}`, after: `${ci.lat}, ${ci.lng}` });
@@ -2345,6 +2440,7 @@
       lng: Number(raw.lng)
     };
     if (raw.hours) entry.hours = raw.hours;
+    if (raw.unavailable) entry.unavailable = true;
     return entry;
   }
 
@@ -2754,6 +2850,13 @@
     renderList(listSearch.value);
   });
 
+  const listUnavailableToggle = document.getElementById('listUnavailableToggle');
+  listUnavailableToggle.addEventListener('click', () => {
+    listHideUnavailable = !listHideUnavailable;
+    listUnavailableToggle.classList.toggle('active', listHideUnavailable);
+    renderList(listSearch.value);
+  });
+
   // ---- Umkreissuche ----
   const listRadiusRow = document.getElementById('listRadiusRow');
   let activeRadius = null;
@@ -2823,7 +2926,9 @@
   function renderList(query) {
     const q = query.trim().toLowerCase();
     let items = getVisibleAutomaten().filter(a =>
-      a.types.some(t => listActiveTypes.has(t)) && (!listOpenOnly || isOpenNow(a))
+      a.types.some(t => listActiveTypes.has(t)) &&
+      (!listOpenOnly || isOpenNow(a)) &&
+      (!listHideUnavailable || !a.unavailable)
     );
 
     if (q) {
@@ -2863,7 +2968,7 @@
       const dot = document.createElement('span');
       dot.className = 'dot ' + (a.types.length > 1 ? 'shape-circle' : shapeClass(a.types[0]));
       dot.style.background = categoryBackground(a.types);
-      if (a.hours && !open) dot.style.opacity = '0.4';
+      if ((a.hours && !open) || a.unavailable) dot.style.opacity = '0.4';
 
       const body = document.createElement('div');
       body.className = 'list-item-body';
@@ -2877,7 +2982,13 @@
         noteEl.textContent = a.note;
         body.appendChild(noteEl);
       }
-      if (a.hours) {
+      if (a.unavailable) {
+        const statusEl = document.createElement('div');
+        statusEl.className = 'list-item-note';
+        statusEl.style.color = 'var(--danger)';
+        statusEl.textContent = CONFIG.texts.statusUnavailableLabel || 'Vorübergehend nicht verfügbar';
+        body.appendChild(statusEl);
+      } else if (a.hours) {
         const statusEl = document.createElement('div');
         statusEl.className = 'list-item-note';
         statusEl.style.color = open ? 'var(--open-color)' : 'var(--closed-color)';

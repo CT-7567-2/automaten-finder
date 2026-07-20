@@ -1,7 +1,7 @@
 {
   "map": {
-    "defaultZoom": 12,
-    "defaultCenter": { "lat": 48.5196, "lng": 9.1748 }
+    "defaultZoom": 14,
+    "defaultCenter": { "lat": 52.5200, "lng": 13.4040 }
   },
 
   "radiusOptions": [
@@ -22,8 +22,10 @@
     "listTitle": "Alle Standorte",
     "searchPlaceholder": "Suche nach Name oder Notiz …",
     "openToggleLabel": "Nur jetzt geöffnete",
+    "unavailableToggleLabel": "Nicht verfügbare ausblenden",
     "statusOpenLabel": "Geöffnet",
     "statusClosedLabel": "Geschlossen",
-    "statusAlwaysLabel": "Durchgehend geöffnet"
+    "statusAlwaysLabel": "Durchgehend geöffnet",
+    "statusUnavailableLabel": "Vorübergehend nicht verfügbar"
   }
 }
