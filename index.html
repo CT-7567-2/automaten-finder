@@ -638,6 +638,65 @@
     cursor: pointer;
   }
   .hours-allday-row input[type="checkbox"] { accent-color: var(--amber); }
+
+  .product-checklist {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 10px;
+  }
+  .product-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--text);
+    padding: 5px 0;
+    cursor: pointer;
+  }
+  .product-checklist input[type="checkbox"] { accent-color: var(--amber); flex-shrink: 0; }
+
+  .product-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+  }
+  .product-badge {
+    font-size: 11px;
+    color: var(--text-dim);
+    border: 1px solid var(--panel-border);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .product-filter-chip {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 11px;
+    border-radius: 20px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .product-filter-chip.active {
+    border-color: var(--point);
+    color: var(--text);
+    background: rgba(124,156,255,0.1);
+  }
+  .product-filter-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 3px;
+    margin-bottom: 10px;
+  }
+  .product-filter-row::-webkit-scrollbar { height: 4px; }
+  .product-filter-row::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
   .hours-range-row {
     display: flex;
     align-items: center;
@@ -1003,6 +1062,12 @@
       <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet. Pro Tag sind mehrere Zeitfenster möglich (z.B. 08:00–12:00 und 14:00–18:00).</div>
     </div>
 
+    <button type="button" class="hours-toggle-link" id="productsToggleLink">+ Angebot (was gibt's hier?)</button>
+    <div class="hours-editor" id="productsEditor">
+      <div id="modalProductRows" class="product-checklist"></div>
+      <div class="hours-hint">Nichts angehakt = keine Angabe (wird nicht als Filterkriterium ausgeschlossen).</div>
+    </div>
+
     <label class="hours-allday-row" style="margin-top:2px;">
       <input type="checkbox" id="modalUnavailable">
       Vorübergehend nicht verfügbar (z.B. defekt/leer)
@@ -1072,8 +1137,9 @@
       <div class="list-title" id="listTitle">Alle Standorte</div>
       <button class="result-close" id="listClose" aria-label="Schließen">✕</button>
     </div>
-    <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name oder Notiz …">
+    <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name, Notiz oder Produkt …">
     <div class="legend-row" id="listFilterRow"></div>
+    <div class="product-filter-row" id="listProductRow"></div>
     <button class="toggle-btn" id="listOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
     <button class="toggle-btn" id="listUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
     <div class="radius-row" id="listRadiusRow"></div>
@@ -1087,6 +1153,7 @@
   // ============================================================
   // AUSGELAGERTE DATEIEN — hier bearbeiten, nicht in dieser Datei:
   //   categories.json  - Welche Kategorien (Automat/Laden/...) es gibt
+  //   products.json    - Welche Produkte/Sortiment ankreuzbar sind
   //   config.json      - Karten-Standardansicht, Umkreis-Stufen, Texte
   //   automaten.json   - Die eigentlichen Standorte
   // ============================================================
@@ -1102,6 +1169,22 @@
   }
   function categoryIds() {
     return Object.keys(CATEGORIES);
+  }
+
+  // ---- Produkte/Sortiment (werden aus products.json geladen) ----
+  // Anders als Kategorien beeinflussen Produkte nicht Farbe/Form auf
+  // der Karte — sie sind eine zusätzliche, unabhängige Ankreuz-Liste
+  // pro Standort ("was gibt's hier?"), nach der auch gesucht/gefiltert
+  // werden kann. Neues Produkt hinzufügen/entfernen: einfach in
+  // products.json einen Eintrag ergänzen/löschen, kein Code nötig.
+  let PRODUCTS = {};
+  const FALLBACK_PRODUCTS = {};
+  function productIds() {
+    return Object.keys(PRODUCTS);
+  }
+  function parseProducts(field) {
+    const raw = Array.isArray(field) ? field : [];
+    return raw.map(String).filter(p => PRODUCTS[p]);
   }
 
   // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
@@ -1234,7 +1317,7 @@
     const combined = [...seedWithEdits, ...loadCustom()];
     return combined
       .filter(a => !deleted.includes(a.id))
-      .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null, unavailable: !!a.unavailable }));
+      .map(a => ({ ...a, types: parseTypes(a.type), note: a.note || '', hours: a.hours || null, unavailable: !!a.unavailable, products: parseProducts(a.products) }));
   }
 
   // ---- Öffnungszeiten-Logik ----
@@ -1325,6 +1408,7 @@
   let listActiveTypes = new Set();
   let listOpenOnly = false;
   let listHideUnavailable = false;
+  let listActiveProducts = new Set(); // leer = kein Produkt-Filter aktiv
 
   // ============================================================
   // Karte initialisieren (vorläufige Ansicht, bis config.json geladen ist)
@@ -1414,6 +1498,18 @@
 
       if (a.hours) {
         popupEl.appendChild(buildFullHoursEl(a));
+      }
+
+      if (a.products.length) {
+        const badges = document.createElement('div');
+        badges.className = 'product-badges';
+        a.products.forEach(pid => {
+          const badge = document.createElement('span');
+          badge.className = 'product-badge';
+          badge.textContent = PRODUCTS[pid] ? PRODUCTS[pid].label : pid;
+          badges.appendChild(badge);
+        });
+        popupEl.appendChild(badges);
       }
 
       const editBtn = document.createElement('button');
@@ -1566,6 +1662,20 @@
     renderMapFilterChips();
     renderListFilterChips();
     renderHoursDayRows();
+
+    // 1b) Produkte/Sortiment laden (optional — fehlt die Datei oder ist
+    // sie leer, bleibt das Feature einfach ungenutzt, nichts bricht)
+    try {
+      const prodRes = await fetch('./products.json', { cache: 'no-store' });
+      if (!prodRes.ok) throw new Error('HTTP ' + prodRes.status);
+      const prodData = await prodRes.json();
+      PRODUCTS = prodData.products || {};
+    } catch (err) {
+      console.warn('products.json konnte nicht geladen werden, Produkt-Filter bleibt leer:', err);
+      PRODUCTS = FALLBACK_PRODUCTS;
+    }
+    renderProductCheckboxes();
+    renderProductFilterChips();
 
     // 2) Konfiguration laden (Karten-Standardansicht, Umkreis-Stufen, Texte)
     try {
@@ -1835,8 +1945,51 @@
   const hoursToggleLink = document.getElementById('hoursToggleLink');
   const hoursEditor = document.getElementById('hoursEditor');
   const hoursDayRows = document.getElementById('hoursDayRows');
+  const productsToggleLink = document.getElementById('productsToggleLink');
+  const productsEditor = document.getElementById('productsEditor');
+  const modalProductRows = document.getElementById('modalProductRows');
   let pendingCoords = null;
   let pendingTypes = new Set([DEFAULT_CATEGORY]);
+  let productCheckboxes = {}; // productId -> <input type="checkbox">
+
+  productsToggleLink.addEventListener('click', () => {
+    const isOpen = productsEditor.classList.toggle('visible');
+    productsToggleLink.textContent = isOpen ? '– Angebot ausblenden' : "+ Angebot (was gibt's hier?)";
+  });
+
+  function renderProductCheckboxes() {
+    modalProductRows.innerHTML = '';
+    productCheckboxes = {};
+    productIds().forEach(pid => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = pid;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(PRODUCTS[pid].label));
+      modalProductRows.appendChild(label);
+      productCheckboxes[pid] = cb;
+    });
+  }
+
+  function resetProductCheckboxes() {
+    Object.values(productCheckboxes).forEach(cb => { cb.checked = false; });
+    productsEditor.classList.remove('visible');
+    productsToggleLink.textContent = "+ Angebot (was gibt's hier?)";
+  }
+
+  function collectSelectedProducts() {
+    return Object.entries(productCheckboxes).filter(([, cb]) => cb.checked).map(([pid]) => pid);
+  }
+
+  function populateProductCheckboxes(products) {
+    resetProductCheckboxes();
+    const list = Array.isArray(products) ? products : [];
+    if (!list.length) return;
+    list.forEach(pid => { if (productCheckboxes[pid]) productCheckboxes[pid].checked = true; });
+    productsEditor.classList.add('visible');
+    productsToggleLink.textContent = '– Angebot ausblenden';
+  }
 
   function buildDot(type) {
     const cat = CATEGORIES[categoryOf(type)];
@@ -2124,6 +2277,7 @@
     modalNote.value = '';
     modalUnavailable.checked = false;
     resetHoursEditor();
+    resetProductCheckboxes();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
     renderModalTypeChips();
     modalSave.textContent = 'Speichern';
@@ -2144,6 +2298,7 @@
     modalNote.value = loc.note || '';
     modalUnavailable.checked = !!loc.unavailable;
     populateHoursEditor(loc.hours);
+    populateProductCheckboxes(loc.products);
     pendingTypes = new Set(loc.types && loc.types.length ? loc.types : [DEFAULT_CATEGORY]);
     renderModalTypeChips();
     modalSave.textContent = 'Änderungen speichern';
@@ -2172,9 +2327,10 @@
     const note = modalNote.value.trim();
     const hours = collectHoursFromEditor();
     const unavailable = modalUnavailable.checked;
+    const products = collectSelectedProducts();
 
     if (modalMode === 'edit' && editingId) {
-      const fields = { name, type: typesArr.join(','), note, unavailable };
+      const fields = { name, type: typesArr.join(','), note, unavailable, products };
       // "hours" nur setzen, wenn vorhanden, sonst explizit entfernen
       // (leeres/undefiniertes Feld = durchgehend geöffnet).
       fields.hours = hours || undefined;
@@ -2205,6 +2361,7 @@
       };
       if (hours) entry.hours = hours;
       if (unavailable) entry.unavailable = true;
+      if (products.length) entry.products = products;
       custom.push(entry);
       saveCustom(custom);
     }
@@ -2302,10 +2459,11 @@
   const exportCopy = document.getElementById('exportCopy');
 
   exportBtn.addEventListener('click', () => {
-    const list = getVisibleAutomaten().map(({ id, name, types, note, hours, unavailable, lat, lng }) => {
+    const list = getVisibleAutomaten().map(({ id, name, types, note, hours, unavailable, products, lat, lng }) => {
       const entry = { id, name, type: types.join(','), note, lat, lng };
       if (hours) entry.hours = hours;
       if (unavailable) entry.unavailable = true;
+      if (products.length) entry.products = products;
       return entry;
     });
     exportTextarea.value = JSON.stringify(list, null, 2);
@@ -2374,6 +2532,7 @@
       note: String(loc.note || '').trim(),
       hours: loc.hours ? JSON.stringify(loc.hours) : null,
       unavailable: !!loc.unavailable,
+      products: parseProducts(loc.products).slice().sort().join(','),
       lat: Math.round((Number(loc.lat) || 0) * 100000) / 100000,
       lng: Math.round((Number(loc.lng) || 0) * 100000) / 100000
     };
@@ -2382,7 +2541,8 @@
   function locationsEqual(a, b) {
     const ca = canonicalizeForCompare(a), cb = canonicalizeForCompare(b);
     return ca.name === cb.name && ca.type === cb.type && ca.note === cb.note &&
-      ca.hours === cb.hours && ca.unavailable === cb.unavailable && ca.lat === cb.lat && ca.lng === cb.lng;
+      ca.hours === cb.hours && ca.unavailable === cb.unavailable && ca.products === cb.products &&
+      ca.lat === cb.lat && ca.lng === cb.lng;
   }
 
   function formatDayRanges(ranges) {
@@ -2420,6 +2580,10 @@
     if (cc.unavailable !== ci.unavailable) {
       const label = v => v ? 'Vorübergehend nicht verfügbar' : 'Verfügbar';
       fields.push({ label: 'Status', before: label(cc.unavailable), after: label(ci.unavailable) });
+    }
+    if (cc.products !== ci.products) {
+      const label = p => p ? p.split(',').map(x => PRODUCTS[x]?.label || x).join(', ') : '–';
+      fields.push({ label: 'Angebot', before: label(cc.products), after: label(ci.products) });
     }
     if (cc.lat !== ci.lat || cc.lng !== ci.lng) {
       fields.push({ label: 'Position', before: `${cc.lat}, ${cc.lng}`, after: `${ci.lat}, ${ci.lng}` });
@@ -2520,6 +2684,7 @@
     };
     if (raw.hours) entry.hours = raw.hours;
     if (raw.unavailable) entry.unavailable = true;
+    if (Array.isArray(raw.products) && raw.products.length) entry.products = raw.products;
     return entry;
   }
 
@@ -2923,6 +3088,33 @@
     });
   }
 
+  // ---- Produkt-Filter in der Liste (Mehrfachauswahl, "ODER"-Logik:
+  // zeigt Standorte, die MINDESTENS eines der angehakten Produkte
+  // haben; nichts ausgewählt = kein Filter, alle werden gezeigt) ----
+  const listProductRow = document.getElementById('listProductRow');
+  function renderProductFilterChips() {
+    listProductRow.innerHTML = '';
+    productIds().forEach(pid => {
+      const btn = document.createElement('button');
+      btn.className = 'product-filter-chip';
+      btn.dataset.productId = pid;
+      btn.textContent = PRODUCTS[pid].label;
+      btn.addEventListener('click', () => {
+        if (listActiveProducts.has(pid)) listActiveProducts.delete(pid);
+        else listActiveProducts.add(pid);
+        refreshProductFilterChips();
+        renderList(listSearch.value);
+      });
+      listProductRow.appendChild(btn);
+    });
+    refreshProductFilterChips();
+  }
+  function refreshProductFilterChips() {
+    [...listProductRow.children].forEach(btn => {
+      btn.classList.toggle('active', listActiveProducts.has(btn.dataset.productId));
+    });
+  }
+
   listOpenToggle.addEventListener('click', () => {
     listOpenOnly = !listOpenOnly;
     listOpenToggle.classList.toggle('active', listOpenOnly);
@@ -3007,12 +3199,15 @@
     let items = getVisibleAutomaten().filter(a =>
       a.types.some(t => listActiveTypes.has(t)) &&
       (!listOpenOnly || isOpenNow(a)) &&
-      (!listHideUnavailable || !a.unavailable)
+      (!listHideUnavailable || !a.unavailable) &&
+      (!listActiveProducts.size || a.products.some(p => listActiveProducts.has(p)))
     );
 
     if (q) {
       items = items.filter(a =>
-        a.name.toLowerCase().includes(q) || a.note.toLowerCase().includes(q)
+        a.name.toLowerCase().includes(q) ||
+        a.note.toLowerCase().includes(q) ||
+        a.products.some(p => (PRODUCTS[p]?.label || '').toLowerCase().includes(q))
       );
     }
 
@@ -3060,6 +3255,12 @@
         noteEl.className = 'list-item-note';
         noteEl.textContent = a.note;
         body.appendChild(noteEl);
+      }
+      if (a.products.length) {
+        const prodEl = document.createElement('div');
+        prodEl.className = 'list-item-note';
+        prodEl.textContent = a.products.map(p => PRODUCTS[p]?.label || p).join(' · ');
+        body.appendChild(prodEl);
       }
       if (a.unavailable) {
         const statusEl = document.createElement('div');

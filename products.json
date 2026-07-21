@@ -1,0 +1,11 @@
+{
+  "products": {
+    "zigaretten":  { "label": "Zigaretten" },
+    "tabak":       { "label": "Tabak (Drehtabak)" },
+    "papers":      { "label": "Papers/Filter" },
+    "feuerzeuge":  { "label": "Feuerzeuge" },
+    "getraenke":   { "label": "Getränke" },
+    "snacks":      { "label": "Snacks" },
+    "kondome":     { "label": "Kondome" }
+  }
+}
