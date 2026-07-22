@@ -645,9 +645,9 @@
   }
   .product-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 0;
     border-bottom: 1px solid var(--panel-border);
   }
   .product-row:last-child { border-bottom: none; }
@@ -658,12 +658,20 @@
     font-size: 13px;
     color: var(--text);
     cursor: pointer;
-    flex: 1;
-    min-width: 0;
   }
   .product-row input[type="checkbox"] { accent-color: var(--amber); flex-shrink: 0; }
-  .product-row .product-price-input {
-    width: 92px;
+  .product-row-inputs {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: 24px;
+    flex-wrap: wrap;
+  }
+  .product-row-inputs.visible { display: flex; }
+  .product-row-inputs .field-label { font-size: 11px; color: var(--text-dim); }
+  .product-row .product-price-input,
+  .product-row .product-amount-input {
+    width: 72px;
     flex-shrink: 0;
     background: #14171a;
     border: 1px solid var(--panel-border);
@@ -673,7 +681,8 @@
     padding: 6px 8px;
     border-radius: 7px;
   }
-  .product-row .product-price-input:disabled { opacity: 0.4; }
+  .product-row .product-price-input:disabled,
+  .product-row .product-amount-input:disabled { opacity: 0.4; }
   .product-row .product-price-unit { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 
   .product-badges {
@@ -925,6 +934,12 @@
     flex-shrink: 0;
     white-space: nowrap;
     margin-top: 2px;
+  }
+  .price-delta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    white-space: nowrap;
+    margin-top: 1px;
   }
 
   .list-empty {
@@ -1255,25 +1270,44 @@
   function productIds() {
     return Object.keys(PRODUCTS);
   }
-  // Rückgabeformat: { produktId: preis|null }. preis ist eine Zahl in
-  // Euro oder null, wenn nur "gibt's hier" angekreuzt, aber kein Preis
-  // bekannt ist. Das ältere Format (nur ein Array von IDs, ohne Preise)
-  // wird weiterhin gelesen, damit vorhandene automaten.json-Einträge
-  // nicht kaputtgehen.
+  // Rückgabeformat: { produktId: { price: preis|null, amount: menge|null } }.
+  // "amount" ist die Packungsgröße/Stückzahl (z.B. 20 bei einer Schachtel
+  // Zigaretten) — wichtig für einen fairen Preisvergleich, da sonst z.B.
+  // eine 19er- mit einer 24er-Packung verglichen würde. Fehlt "amount",
+  // wird 1 angenommen (Preis gilt dann direkt pro Einheit).
+  //
+  // Ältere Formate werden weiterhin gelesen, damit vorhandene
+  // automaten.json-Einträge nicht kaputtgehen:
+  //   - Array von IDs ohne Preis:        ["zigaretten"]
+  //   - Objekt mit nur einer Zahl:       { zigaretten: 8.5 }
+  //   - Aktuelles Format (Objekt mit Preis+Menge): { zigaretten: { price: 8.5, amount: 20 } }
   function parseProducts(field) {
     const result = {};
     if (Array.isArray(field)) {
-      field.forEach(p => { if (PRODUCTS[String(p)]) result[String(p)] = null; });
+      field.forEach(p => { if (PRODUCTS[String(p)]) result[String(p)] = { price: null, amount: null }; });
     } else if (field && typeof field === 'object') {
-      Object.entries(field).forEach(([pid, price]) => {
+      Object.entries(field).forEach(([pid, val]) => {
         if (!PRODUCTS[pid]) return;
-        result[pid] = (typeof price === 'number' && isFinite(price)) ? price : null;
+        if (val && typeof val === 'object') {
+          const price = (typeof val.price === 'number' && isFinite(val.price)) ? val.price : null;
+          const amount = (typeof val.amount === 'number' && isFinite(val.amount) && val.amount > 0) ? val.amount : null;
+          result[pid] = { price, amount };
+        } else {
+          const price = (typeof val === 'number' && isFinite(val)) ? val : null;
+          result[pid] = { price, amount: null };
+        }
       });
     }
     return result;
   }
   function formatPrice(v) {
     return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  }
+  // Preis pro Einheit — Grundlage für einen fairen Vergleich zwischen
+  // unterschiedlichen Packungsgrößen. null, wenn kein Preis bekannt ist.
+  function unitPrice(entry) {
+    if (!entry || entry.price == null) return null;
+    return entry.price / (entry.amount || 1);
   }
 
   // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
@@ -1593,11 +1627,17 @@
       if (productEntries.length) {
         const badges = document.createElement('div');
         badges.className = 'product-badges';
-        productEntries.forEach(([pid, price]) => {
+        productEntries.forEach(([pid, entry]) => {
           const badge = document.createElement('span');
           badge.className = 'product-badge';
           const label = PRODUCTS[pid] ? PRODUCTS[pid].label : pid;
-          badge.textContent = price != null ? `${label} · ${formatPrice(price)}` : label;
+          if (entry.price == null) {
+            badge.textContent = label;
+          } else if (entry.amount != null) {
+            badge.textContent = `${label} · ${formatPrice(entry.price)} / ${entry.amount} Stk. (${formatPrice(unitPrice(entry))}/Stk.)`;
+          } else {
+            badge.textContent = `${label} · ${formatPrice(entry.price)}`;
+          }
           badges.appendChild(badge);
         });
         popupEl.appendChild(badges);
@@ -2064,32 +2104,55 @@
       label.appendChild(cb);
       label.appendChild(document.createTextNode(PRODUCTS[pid].label));
 
+      const inputsWrap = document.createElement('div');
+      inputsWrap.className = 'product-row-inputs';
+
+      const priceLabel = document.createElement('span');
+      priceLabel.className = 'field-label';
+      priceLabel.textContent = 'Preis';
       const priceInput = document.createElement('input');
       priceInput.type = 'number';
       priceInput.className = 'product-price-input';
       priceInput.step = '0.01';
       priceInput.min = '0';
-      priceInput.placeholder = 'Preis';
-      priceInput.disabled = true;
+      priceInput.placeholder = '0,00';
+      const priceUnit = document.createElement('span');
+      priceUnit.className = 'product-price-unit';
+      priceUnit.textContent = '€';
 
-      const unit = document.createElement('span');
-      unit.className = 'product-price-unit';
-      unit.textContent = '€';
+      const amountLabel = document.createElement('span');
+      amountLabel.className = 'field-label';
+      amountLabel.textContent = 'Menge';
+      const amountInput = document.createElement('input');
+      amountInput.type = 'number';
+      amountInput.className = 'product-amount-input';
+      amountInput.step = '1';
+      amountInput.min = '1';
+      amountInput.placeholder = 'z.B. 20';
+      const amountUnit = document.createElement('span');
+      amountUnit.className = 'product-price-unit';
+      amountUnit.textContent = 'Stk.';
+
+      inputsWrap.appendChild(priceLabel);
+      inputsWrap.appendChild(priceInput);
+      inputsWrap.appendChild(priceUnit);
+      inputsWrap.appendChild(amountLabel);
+      inputsWrap.appendChild(amountInput);
+      inputsWrap.appendChild(amountUnit);
 
       cb.addEventListener('change', () => {
-        priceInput.disabled = !cb.checked;
-        if (!cb.checked) priceInput.value = '';
+        inputsWrap.classList.toggle('visible', cb.checked);
+        if (!cb.checked) { priceInput.value = ''; amountInput.value = ''; }
       });
       // Preis eingetragen → Häkchen automatisch mitsetzen, spart einen Klick
       priceInput.addEventListener('input', () => {
-        if (priceInput.value !== '' && !cb.checked) { cb.checked = true; priceInput.disabled = false; }
+        if (priceInput.value !== '' && !cb.checked) { cb.checked = true; inputsWrap.classList.add('visible'); }
       });
 
       row.appendChild(label);
-      row.appendChild(priceInput);
-      row.appendChild(unit);
+      row.appendChild(inputsWrap);
       modalProductRows.appendChild(row);
-      productRows[pid] = { checkbox: cb, priceInput };
+      productRows[pid] = { checkbox: cb, priceInput, amountInput, inputsWrap };
     });
   }
 
@@ -2098,9 +2161,11 @@
       const r = productRows[pid];
       if (!r) return;
       const has = Object.prototype.hasOwnProperty.call(products, pid);
+      const entry = has ? products[pid] : null;
       r.checkbox.checked = has;
-      r.priceInput.disabled = !has;
-      r.priceInput.value = (has && products[pid] != null) ? products[pid] : '';
+      r.inputsWrap.classList.toggle('visible', has);
+      r.priceInput.value = (entry && entry.price != null) ? entry.price : '';
+      r.amountInput.value = (entry && entry.amount != null) ? entry.amount : '';
     });
   }
 
@@ -2109,8 +2174,12 @@
     productIds().forEach(pid => {
       const r = productRows[pid];
       if (!r || !r.checkbox.checked) return;
-      const v = parseFloat(r.priceInput.value);
-      result[pid] = (r.priceInput.value !== '' && isFinite(v)) ? v : null;
+      const priceVal = parseFloat(r.priceInput.value);
+      const amountVal = parseFloat(r.amountInput.value);
+      result[pid] = {
+        price: (r.priceInput.value !== '' && isFinite(priceVal)) ? priceVal : null,
+        amount: (r.amountInput.value !== '' && isFinite(amountVal) && amountVal > 0) ? amountVal : null
+      };
     });
     return result;
   }
@@ -2122,7 +2191,12 @@
       return;
     }
     productsSummary.textContent = entries
-      .map(([pid, price]) => `${PRODUCTS[pid]?.label || pid}${price != null ? ' (' + formatPrice(price) + ')' : ''}`)
+      .map(([pid, entry]) => {
+        const label = PRODUCTS[pid]?.label || pid;
+        if (entry?.price == null) return label;
+        const amountText = entry.amount != null ? ` / ${entry.amount} Stk.` : '';
+        return `${label} (${formatPrice(entry.price)}${amountText})`;
+      })
       .join(', ');
   }
 
@@ -2681,7 +2755,7 @@
       note: String(loc.note || '').trim(),
       hours: loc.hours ? JSON.stringify(loc.hours) : null,
       unavailable: !!loc.unavailable,
-      products: Object.entries(parseProducts(loc.products)).sort().map(([k, v]) => `${k}:${v == null ? '' : v}`).join(','),
+      products: Object.entries(parseProducts(loc.products)).sort().map(([k, v]) => `${k}:${v.price == null ? '' : v.price}:${v.amount == null ? '' : v.amount}`).join(','),
       lat: Math.round((Number(loc.lat) || 0) * 100000) / 100000,
       lng: Math.round((Number(loc.lng) || 0) * 100000) / 100000
     };
@@ -2733,9 +2807,11 @@
     if (cc.products !== ci.products) {
       const label = p => p
         ? p.split(',').map(entry => {
-            const [pid, priceStr] = entry.split(':');
+            const [pid, priceStr, amountStr] = entry.split(':');
             const name = PRODUCTS[pid]?.label || pid;
-            return priceStr ? `${name} (${formatPrice(Number(priceStr))})` : name;
+            if (!priceStr) return name;
+            const amountText = amountStr ? ` / ${amountStr} Stk.` : '';
+            return `${name} (${formatPrice(Number(priceStr))}${amountText})`;
           }).join(', ')
         : '–';
       fields.push({ label: 'Angebot', before: label(cc.products), after: label(ci.products) });
@@ -3448,11 +3524,11 @@
 
     if (compareProductId && compareSortMode === 'price') {
       items = [...items].sort((a, b) => {
-        const pa = a.products[compareProductId], pb = b.products[compareProductId];
-        if (pa == null && pb == null) return 0;
-        if (pa == null) return 1;  // ohne Preisangabe ans Ende
-        if (pb == null) return -1;
-        return pa - pb; // günstigster zuerst
+        const ua = unitPrice(a.products[compareProductId]), ub = unitPrice(b.products[compareProductId]);
+        if (ua == null && ub == null) return 0;
+        if (ua == null) return 1;  // ohne Preisangabe ans Ende
+        if (ub == null) return -1;
+        return ua - ub; // günstigster zuerst (pro Stück/Einheit)
       });
     } else if (lastKnownLocation) {
       items = [...items].sort((a, b) => a._dist - b._dist); // nächster zuerst
@@ -3460,7 +3536,27 @@
       items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
     }
 
+    // Durchschnittspreis (pro Einheit) über alle aktuell gezeigten
+    // Standorte mit bekanntem Preis zu diesem Produkt — Grundlage für
+    // die rote/grüne Abweichungsanzeige je Standort.
+    let avgUnitPrice = null;
+    if (compareProductId) {
+      const knownPrices = items.map(a => unitPrice(a.products[compareProductId])).filter(p => p != null);
+      if (knownPrices.length) {
+        avgUnitPrice = knownPrices.reduce((sum, p) => sum + p, 0) / knownPrices.length;
+      }
+    }
+
     listItems.innerHTML = '';
+
+    if (compareProductId && avgUnitPrice != null) {
+      const avgLine = document.createElement('div');
+      avgLine.className = 'list-empty';
+      avgLine.style.padding = '2px 4px 10px';
+      avgLine.style.textAlign = 'left';
+      avgLine.textContent = `Ø-Preis ${PRODUCTS[compareProductId].label}: ${formatPrice(avgUnitPrice)} / Stk.`;
+      listItems.appendChild(avgLine);
+    }
 
     if (distanceModeWithoutLocation) {
       const hint = document.createElement('div');
@@ -3509,9 +3605,11 @@
         const prodEl = document.createElement('div');
         prodEl.className = 'list-item-note';
         prodEl.textContent = productEntries
-          .map(([pid, price]) => {
+          .map(([pid, entry]) => {
             const label = PRODUCTS[pid]?.label || pid;
-            return price != null ? `${label} (${formatPrice(price)})` : label;
+            if (entry.price == null) return label;
+            const amountText = entry.amount != null ? ` / ${entry.amount} Stk.` : '';
+            return `${label} (${formatPrice(entry.price)}${amountText})`;
           })
           .join(' · ');
         body.appendChild(prodEl);
@@ -3534,12 +3632,41 @@
       el.appendChild(body);
 
       if (compareProductId && compareSortMode === 'price') {
-        const price = a.products[compareProductId];
+        const entry = a.products[compareProductId];
+        const ua = unitPrice(entry);
+        const wrap = document.createElement('div');
+        wrap.style.textAlign = 'right';
+
         const priceEl = document.createElement('div');
         priceEl.className = 'list-item-dist';
-        priceEl.style.color = price != null ? 'var(--open-color)' : 'var(--text-dim)';
-        priceEl.textContent = price != null ? formatPrice(price) : 'kein Preis';
-        el.appendChild(priceEl);
+        if (entry.price == null) {
+          priceEl.style.color = 'var(--text-dim)';
+          priceEl.textContent = 'kein Preis';
+        } else {
+          priceEl.style.color = 'var(--text)';
+          priceEl.textContent = entry.amount != null
+            ? `${formatPrice(entry.price)} / ${entry.amount} Stk.`
+            : formatPrice(entry.price);
+        }
+        wrap.appendChild(priceEl);
+
+        if (ua != null && avgUnitPrice != null) {
+          const delta = ua - avgUnitPrice;
+          const deltaEl = document.createElement('div');
+          deltaEl.className = 'price-delta';
+          if (Math.abs(delta) < 0.005) {
+            deltaEl.style.color = 'var(--text-dim)';
+            deltaEl.textContent = 'Ø-Preis';
+          } else if (delta > 0) {
+            deltaEl.style.color = 'var(--danger)';
+            deltaEl.textContent = `+${formatPrice(delta)}/Stk.`;
+          } else {
+            deltaEl.style.color = 'var(--open-color)';
+            deltaEl.textContent = `−${formatPrice(Math.abs(delta))}/Stk.`;
+          }
+          wrap.appendChild(deltaEl);
+        }
+        el.appendChild(wrap);
       } else if (a._dist !== undefined) {
         const distEl = document.createElement('div');
         distEl.className = 'list-item-dist';
