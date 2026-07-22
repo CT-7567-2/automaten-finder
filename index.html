@@ -718,6 +718,42 @@
   }
   .product-filter-row::-webkit-scrollbar { height: 4px; }
   .product-filter-row::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+  .compare-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .compare-select {
+    flex: 1;
+    min-width: 0;
+    background: #14171a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    padding: 7px 8px;
+    border-radius: 8px;
+  }
+  .compare-mode-toggle {
+    display: flex;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .compare-mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  .compare-mode-btn + .compare-mode-btn { border-left: 1px solid var(--panel-border); }
+  .compare-mode-btn.active { background: var(--amber); color: #1a1400; }
   .hours-range-row {
     display: flex;
     align-items: center;
@@ -1170,6 +1206,13 @@
     <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name, Notiz oder Produkt …">
     <div class="legend-row" id="listFilterRow"></div>
     <div class="product-filter-row" id="listProductRow"></div>
+    <div class="compare-row" id="compareRow" style="display:none;">
+      <select id="compareSelect" class="compare-select"></select>
+      <div class="compare-mode-toggle" id="compareModeToggle">
+        <button type="button" class="compare-mode-btn" data-mode="price">Preis</button>
+        <button type="button" class="compare-mode-btn" data-mode="distance">Entfernung</button>
+      </div>
+    </div>
     <button class="toggle-btn" id="listOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
     <button class="toggle-btn" id="listUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
     <div class="radius-row" id="listRadiusRow"></div>
@@ -3216,6 +3259,7 @@
         if (listActiveProducts.has(pid)) listActiveProducts.delete(pid);
         else listActiveProducts.add(pid);
         refreshProductFilterChips();
+        refreshCompareRow();
         renderList(listSearch.value);
       });
       listProductRow.appendChild(btn);
@@ -3227,6 +3271,66 @@
       btn.classList.toggle('active', listActiveProducts.has(btn.dataset.productId));
     });
   }
+
+  // ---- Vergleichs-Steuerung: erscheint, sobald mind. 1 Produkt-Filter
+  // aktiv ist. Bei genau einem Produkt wird das automatisch als
+  // Vergleichs-Grundlage genutzt; bei mehreren wählt man per Dropdown,
+  // welches der ausgewählten Produkte verglichen werden soll. Zusätzlich
+  // lässt sich zwischen "günstigster zuerst" und "nächster zuerst"
+  // umschalten (Entfernung nur mit bekanntem Standort sinnvoll).
+  const compareRow = document.getElementById('compareRow');
+  const compareSelect = document.getElementById('compareSelect');
+  const compareModeToggle = document.getElementById('compareModeToggle');
+  let compareProductId = null;
+  let compareSortMode = 'price'; // 'price' | 'distance'
+
+  function refreshCompareRow() {
+    const active = [...listActiveProducts];
+
+    if (!active.length) {
+      compareRow.style.display = 'none';
+      compareProductId = null;
+      return;
+    }
+
+    // Nur bei 2+ Produkten braucht es die Auswahl; bei genau einem ist
+    // die Antwort eindeutig.
+    if (active.length === 1) {
+      compareProductId = active[0];
+      compareSelect.style.display = 'none';
+    } else {
+      compareSelect.style.display = 'block';
+      if (!compareProductId || !active.includes(compareProductId)) {
+        compareProductId = active[0];
+      }
+      compareSelect.innerHTML = '';
+      active.forEach(pid => {
+        const opt = document.createElement('option');
+        opt.value = pid;
+        opt.textContent = 'Vergleichen: ' + PRODUCTS[pid].label;
+        if (pid === compareProductId) opt.selected = true;
+        compareSelect.appendChild(opt);
+      });
+    }
+
+    compareRow.style.display = 'flex';
+    [...compareModeToggle.children].forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === compareSortMode);
+    });
+  }
+
+  compareSelect.addEventListener('change', () => {
+    compareProductId = compareSelect.value;
+    renderList(listSearch.value);
+  });
+
+  compareModeToggle.addEventListener('click', e => {
+    const btn = e.target.closest('.compare-mode-btn');
+    if (!btn) return;
+    compareSortMode = btn.dataset.mode;
+    refreshCompareRow();
+    renderList(listSearch.value);
+  });
 
   listOpenToggle.addEventListener('click', () => {
     listOpenOnly = !listOpenOnly;
@@ -3309,6 +3413,8 @@
 
   function renderList(query) {
     const q = query.trim().toLowerCase();
+    refreshCompareRow();
+
     let items = getVisibleAutomaten().filter(a =>
       a.types.some(t => listActiveTypes.has(t)) &&
       (!listOpenOnly || isOpenNow(a)) &&
@@ -3324,40 +3430,54 @@
       );
     }
 
-    // Ist genau ein Produkt-Filter aktiv, macht "Preisvergleich" mehr
-    // Sinn als Entfernung: günstigster zuerst, Standorte ohne Preis
-    // zu diesem Produkt (nur "gibt's hier" ohne Preisangabe) ans Ende.
-    const priceCompareId = listActiveProducts.size === 1 ? [...listActiveProducts][0] : null;
+    // Ist ein Vergleichsprodukt gewählt, zusätzlich auf Standorte
+    // einschränken, die es auch tatsächlich führen — sonst wäre
+    // "günstigster/nächster" nicht aussagekräftig ("wo gibt's DAS
+    // Produkt am nächsten/günstigsten", nicht irgendein anderes).
+    if (compareProductId) {
+      items = items.filter(a => Object.prototype.hasOwnProperty.call(a.products, compareProductId));
+    }
+    const distanceModeWithoutLocation = compareProductId && compareSortMode === 'distance' && !lastKnownLocation;
 
     if (lastKnownLocation) {
-      items = items
-        .map(a => ({ ...a, _dist: distanceMeters(lastKnownLocation.lat, lastKnownLocation.lng, a.lat, a.lng) }))
-        .sort((a, b) => a._dist - b._dist);
+      items = items.map(a => ({ ...a, _dist: distanceMeters(lastKnownLocation.lat, lastKnownLocation.lng, a.lat, a.lng) }));
       if (activeRadius) {
         items = items.filter(a => a._dist <= activeRadius);
       }
-    } else {
-      items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
     }
 
-    if (priceCompareId) {
+    if (compareProductId && compareSortMode === 'price') {
       items = [...items].sort((a, b) => {
-        const pa = a.products[priceCompareId], pb = b.products[priceCompareId];
+        const pa = a.products[compareProductId], pb = b.products[compareProductId];
         if (pa == null && pb == null) return 0;
         if (pa == null) return 1;  // ohne Preisangabe ans Ende
         if (pb == null) return -1;
         return pa - pb; // günstigster zuerst
       });
+    } else if (lastKnownLocation) {
+      items = [...items].sort((a, b) => a._dist - b._dist); // nächster zuerst
+    } else {
+      items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
     }
 
     listItems.innerHTML = '';
 
+    if (distanceModeWithoutLocation) {
+      const hint = document.createElement('div');
+      hint.className = 'list-empty';
+      hint.style.padding = '8px 4px';
+      hint.textContent = '"Mein Standort" oder "Punkt auf Karte wählen" nutzen, um nach Entfernung zu sortieren.';
+      listItems.appendChild(hint);
+    }
+
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'list-empty';
-      empty.textContent = activeRadius
-        ? `Keine Standorte im Umkreis von ${activeRadius < 1000 ? activeRadius + ' m' : (activeRadius / 1000) + ' km'}.`
-        : 'Keine Standorte gefunden.';
+      empty.textContent = compareProductId
+        ? `Kein Standort mit ${PRODUCTS[compareProductId].label} gefunden.`
+        : activeRadius
+          ? `Keine Standorte im Umkreis von ${activeRadius < 1000 ? activeRadius + ' m' : (activeRadius / 1000) + ' km'}.`
+          : 'Keine Standorte gefunden.';
       listItems.appendChild(empty);
       return;
     }
@@ -3413,8 +3533,8 @@
       el.appendChild(dot);
       el.appendChild(body);
 
-      if (priceCompareId) {
-        const price = a.products[priceCompareId];
+      if (compareProductId && compareSortMode === 'price') {
+        const price = a.products[compareProductId];
         const priceEl = document.createElement('div');
         priceEl.className = 'list-item-dist';
         priceEl.style.color = price != null ? 'var(--open-color)' : 'var(--text-dim)';
@@ -3423,6 +3543,7 @@
       } else if (a._dist !== undefined) {
         const distEl = document.createElement('div');
         distEl.className = 'list-item-dist';
+        if (compareProductId && compareSortMode === 'distance') distEl.style.color = 'var(--open-color)';
         distEl.textContent = a._dist < 1000 ? Math.round(a._dist) + ' m' : (a._dist / 1000).toFixed(1) + ' km';
         el.appendChild(distEl);
       }
