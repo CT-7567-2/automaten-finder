@@ -640,20 +640,41 @@
   .hours-allday-row input[type="checkbox"] { accent-color: var(--amber); }
 
   .product-checklist {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2px 10px;
+    display: flex;
+    flex-direction: column;
   }
-  .product-checklist label {
+  .product-row {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: 12.5px;
-    color: var(--text);
-    padding: 5px 0;
-    cursor: pointer;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--panel-border);
   }
-  .product-checklist input[type="checkbox"] { accent-color: var(--amber); flex-shrink: 0; }
+  .product-row:last-child { border-bottom: none; }
+  .product-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+  }
+  .product-row input[type="checkbox"] { accent-color: var(--amber); flex-shrink: 0; }
+  .product-row .product-price-input {
+    width: 92px;
+    flex-shrink: 0;
+    background: #14171a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    padding: 6px 8px;
+    border-radius: 7px;
+  }
+  .product-row .product-price-input:disabled { opacity: 0.4; }
+  .product-row .product-price-unit { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
 
   .product-badges {
     display: flex;
@@ -1062,11 +1083,8 @@
       <div class="hours-hint">Nur angehakte Tage werden gespeichert. Kein Tag angehakt = durchgehend geöffnet. Pro Tag sind mehrere Zeitfenster möglich (z.B. 08:00–12:00 und 14:00–18:00).</div>
     </div>
 
-    <button type="button" class="hours-toggle-link" id="productsToggleLink">+ Angebot (was gibt's hier?)</button>
-    <div class="hours-editor" id="productsEditor">
-      <div id="modalProductRows" class="product-checklist"></div>
-      <div class="hours-hint">Nichts angehakt = keine Angabe (wird nicht als Filterkriterium ausgeschlossen).</div>
-    </div>
+    <button type="button" class="modal-btn cancel" id="productsOpenBtn" style="margin-bottom:12px;">Angebot &amp; Preise bearbeiten</button>
+    <div class="hours-hint" id="productsSummary" style="margin:-8px 0 12px;"></div>
 
     <label class="hours-allday-row" style="margin-top:2px;">
       <input type="checkbox" id="modalUnavailable">
@@ -1076,6 +1094,18 @@
     <div class="modal-actions">
       <button class="modal-btn cancel" id="modalCancel">Abbrechen</button>
       <button class="modal-btn save" id="modalSave">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="productsOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Angebot &amp; Preise</div>
+    <div class="modal-coords">Ankreuzen, was es hier gibt. Preis optional — hilfreich, um Automaten für dasselbe Produkt zu vergleichen.</div>
+    <div id="modalProductRows" class="product-checklist"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="modal-btn cancel" id="productsCancel">Abbrechen</button>
+      <button class="modal-btn save" id="productsApply">Übernehmen</button>
     </div>
   </div>
 </div>
@@ -1182,9 +1212,25 @@
   function productIds() {
     return Object.keys(PRODUCTS);
   }
+  // Rückgabeformat: { produktId: preis|null }. preis ist eine Zahl in
+  // Euro oder null, wenn nur "gibt's hier" angekreuzt, aber kein Preis
+  // bekannt ist. Das ältere Format (nur ein Array von IDs, ohne Preise)
+  // wird weiterhin gelesen, damit vorhandene automaten.json-Einträge
+  // nicht kaputtgehen.
   function parseProducts(field) {
-    const raw = Array.isArray(field) ? field : [];
-    return raw.map(String).filter(p => PRODUCTS[p]);
+    const result = {};
+    if (Array.isArray(field)) {
+      field.forEach(p => { if (PRODUCTS[String(p)]) result[String(p)] = null; });
+    } else if (field && typeof field === 'object') {
+      Object.entries(field).forEach(([pid, price]) => {
+        if (!PRODUCTS[pid]) return;
+        result[pid] = (typeof price === 'number' && isFinite(price)) ? price : null;
+      });
+    }
+    return result;
+  }
+  function formatPrice(v) {
+    return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   }
 
   // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
@@ -1500,13 +1546,15 @@
         popupEl.appendChild(buildFullHoursEl(a));
       }
 
-      if (a.products.length) {
+      const productEntries = Object.entries(a.products);
+      if (productEntries.length) {
         const badges = document.createElement('div');
         badges.className = 'product-badges';
-        a.products.forEach(pid => {
+        productEntries.forEach(([pid, price]) => {
           const badge = document.createElement('span');
           badge.className = 'product-badge';
-          badge.textContent = PRODUCTS[pid] ? PRODUCTS[pid].label : pid;
+          const label = PRODUCTS[pid] ? PRODUCTS[pid].label : pid;
+          badge.textContent = price != null ? `${label} · ${formatPrice(price)}` : label;
           badges.appendChild(badge);
         });
         popupEl.appendChild(badges);
@@ -1674,7 +1722,7 @@
       console.warn('products.json konnte nicht geladen werden, Produkt-Filter bleibt leer:', err);
       PRODUCTS = FALLBACK_PRODUCTS;
     }
-    renderProductCheckboxes();
+    renderProductRows();
     renderProductFilterChips();
 
     // 2) Konfiguration laden (Karten-Standardansicht, Umkreis-Stufen, Texte)
@@ -1945,51 +1993,107 @@
   const hoursToggleLink = document.getElementById('hoursToggleLink');
   const hoursEditor = document.getElementById('hoursEditor');
   const hoursDayRows = document.getElementById('hoursDayRows');
-  const productsToggleLink = document.getElementById('productsToggleLink');
-  const productsEditor = document.getElementById('productsEditor');
+  const productsOpenBtn = document.getElementById('productsOpenBtn');
+  const productsSummary = document.getElementById('productsSummary');
+  const productsOverlay = document.getElementById('productsOverlay');
+  const productsCancel = document.getElementById('productsCancel');
+  const productsApply = document.getElementById('productsApply');
   const modalProductRows = document.getElementById('modalProductRows');
   let pendingCoords = null;
   let pendingTypes = new Set([DEFAULT_CATEGORY]);
-  let productCheckboxes = {}; // productId -> <input type="checkbox">
+  let pendingProducts = {}; // { produktId: preis|null } — Arbeitskopie fürs Hauptformular
+  let productRows = {}; // productId -> { checkbox, priceInput }
 
-  productsToggleLink.addEventListener('click', () => {
-    const isOpen = productsEditor.classList.toggle('visible');
-    productsToggleLink.textContent = isOpen ? '– Angebot ausblenden' : "+ Angebot (was gibt's hier?)";
-  });
-
-  function renderProductCheckboxes() {
+  // ---- Eigenes Popup für Angebot & Preise ----
+  // Bewusst als separates Popup statt Inline-Liste im Hauptformular,
+  // damit der Hinzufügen/Bearbeiten-Dialog übersichtlich bleibt —
+  // besonders jetzt, wo pro Produkt auch noch ein Preis dazukommt.
+  function renderProductRows() {
     modalProductRows.innerHTML = '';
-    productCheckboxes = {};
+    productRows = {};
     productIds().forEach(pid => {
+      const row = document.createElement('div');
+      row.className = 'product-row';
+
       const label = document.createElement('label');
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.value = pid;
       label.appendChild(cb);
       label.appendChild(document.createTextNode(PRODUCTS[pid].label));
-      modalProductRows.appendChild(label);
-      productCheckboxes[pid] = cb;
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.className = 'product-price-input';
+      priceInput.step = '0.01';
+      priceInput.min = '0';
+      priceInput.placeholder = 'Preis';
+      priceInput.disabled = true;
+
+      const unit = document.createElement('span');
+      unit.className = 'product-price-unit';
+      unit.textContent = '€';
+
+      cb.addEventListener('change', () => {
+        priceInput.disabled = !cb.checked;
+        if (!cb.checked) priceInput.value = '';
+      });
+      // Preis eingetragen → Häkchen automatisch mitsetzen, spart einen Klick
+      priceInput.addEventListener('input', () => {
+        if (priceInput.value !== '' && !cb.checked) { cb.checked = true; priceInput.disabled = false; }
+      });
+
+      row.appendChild(label);
+      row.appendChild(priceInput);
+      row.appendChild(unit);
+      modalProductRows.appendChild(row);
+      productRows[pid] = { checkbox: cb, priceInput };
     });
   }
 
-  function resetProductCheckboxes() {
-    Object.values(productCheckboxes).forEach(cb => { cb.checked = false; });
-    productsEditor.classList.remove('visible');
-    productsToggleLink.textContent = "+ Angebot (was gibt's hier?)";
+  function loadProductRowsFrom(products) {
+    productIds().forEach(pid => {
+      const r = productRows[pid];
+      if (!r) return;
+      const has = Object.prototype.hasOwnProperty.call(products, pid);
+      r.checkbox.checked = has;
+      r.priceInput.disabled = !has;
+      r.priceInput.value = (has && products[pid] != null) ? products[pid] : '';
+    });
   }
 
-  function collectSelectedProducts() {
-    return Object.entries(productCheckboxes).filter(([, cb]) => cb.checked).map(([pid]) => pid);
+  function readProductRows() {
+    const result = {};
+    productIds().forEach(pid => {
+      const r = productRows[pid];
+      if (!r || !r.checkbox.checked) return;
+      const v = parseFloat(r.priceInput.value);
+      result[pid] = (r.priceInput.value !== '' && isFinite(v)) ? v : null;
+    });
+    return result;
   }
 
-  function populateProductCheckboxes(products) {
-    resetProductCheckboxes();
-    const list = Array.isArray(products) ? products : [];
-    if (!list.length) return;
-    list.forEach(pid => { if (productCheckboxes[pid]) productCheckboxes[pid].checked = true; });
-    productsEditor.classList.add('visible');
-    productsToggleLink.textContent = '– Angebot ausblenden';
+  function updateProductsSummary() {
+    const entries = Object.entries(pendingProducts);
+    if (!entries.length) {
+      productsSummary.textContent = 'Kein Angebot hinterlegt.';
+      return;
+    }
+    productsSummary.textContent = entries
+      .map(([pid, price]) => `${PRODUCTS[pid]?.label || pid}${price != null ? ' (' + formatPrice(price) + ')' : ''}`)
+      .join(', ');
   }
+
+  productsOpenBtn.addEventListener('click', () => {
+    loadProductRowsFrom(pendingProducts);
+    productsOverlay.classList.add('visible');
+  });
+  productsCancel.addEventListener('click', () => productsOverlay.classList.remove('visible'));
+  productsOverlay.addEventListener('click', e => { if (e.target === productsOverlay) productsOverlay.classList.remove('visible'); });
+  productsApply.addEventListener('click', () => {
+    pendingProducts = readProductRows();
+    updateProductsSummary();
+    productsOverlay.classList.remove('visible');
+  });
 
   function buildDot(type) {
     const cat = CATEGORIES[categoryOf(type)];
@@ -2277,7 +2381,8 @@
     modalNote.value = '';
     modalUnavailable.checked = false;
     resetHoursEditor();
-    resetProductCheckboxes();
+    pendingProducts = {};
+    updateProductsSummary();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
     renderModalTypeChips();
     modalSave.textContent = 'Speichern';
@@ -2298,7 +2403,8 @@
     modalNote.value = loc.note || '';
     modalUnavailable.checked = !!loc.unavailable;
     populateHoursEditor(loc.hours);
-    populateProductCheckboxes(loc.products);
+    pendingProducts = { ...loc.products };
+    updateProductsSummary();
     pendingTypes = new Set(loc.types && loc.types.length ? loc.types : [DEFAULT_CATEGORY]);
     renderModalTypeChips();
     modalSave.textContent = 'Änderungen speichern';
@@ -2327,7 +2433,7 @@
     const note = modalNote.value.trim();
     const hours = collectHoursFromEditor();
     const unavailable = modalUnavailable.checked;
-    const products = collectSelectedProducts();
+    const products = pendingProducts;
 
     if (modalMode === 'edit' && editingId) {
       const fields = { name, type: typesArr.join(','), note, unavailable, products };
@@ -2361,7 +2467,7 @@
       };
       if (hours) entry.hours = hours;
       if (unavailable) entry.unavailable = true;
-      if (products.length) entry.products = products;
+      if (Object.keys(products).length) entry.products = products;
       custom.push(entry);
       saveCustom(custom);
     }
@@ -2463,7 +2569,7 @@
       const entry = { id, name, type: types.join(','), note, lat, lng };
       if (hours) entry.hours = hours;
       if (unavailable) entry.unavailable = true;
-      if (products.length) entry.products = products;
+      if (Object.keys(products).length) entry.products = products;
       return entry;
     });
     exportTextarea.value = JSON.stringify(list, null, 2);
@@ -2532,7 +2638,7 @@
       note: String(loc.note || '').trim(),
       hours: loc.hours ? JSON.stringify(loc.hours) : null,
       unavailable: !!loc.unavailable,
-      products: parseProducts(loc.products).slice().sort().join(','),
+      products: Object.entries(parseProducts(loc.products)).sort().map(([k, v]) => `${k}:${v == null ? '' : v}`).join(','),
       lat: Math.round((Number(loc.lat) || 0) * 100000) / 100000,
       lng: Math.round((Number(loc.lng) || 0) * 100000) / 100000
     };
@@ -2582,7 +2688,13 @@
       fields.push({ label: 'Status', before: label(cc.unavailable), after: label(ci.unavailable) });
     }
     if (cc.products !== ci.products) {
-      const label = p => p ? p.split(',').map(x => PRODUCTS[x]?.label || x).join(', ') : '–';
+      const label = p => p
+        ? p.split(',').map(entry => {
+            const [pid, priceStr] = entry.split(':');
+            const name = PRODUCTS[pid]?.label || pid;
+            return priceStr ? `${name} (${formatPrice(Number(priceStr))})` : name;
+          }).join(', ')
+        : '–';
       fields.push({ label: 'Angebot', before: label(cc.products), after: label(ci.products) });
     }
     if (cc.lat !== ci.lat || cc.lng !== ci.lng) {
@@ -2685,6 +2797,7 @@
     if (raw.hours) entry.hours = raw.hours;
     if (raw.unavailable) entry.unavailable = true;
     if (Array.isArray(raw.products) && raw.products.length) entry.products = raw.products;
+    else if (raw.products && typeof raw.products === 'object' && Object.keys(raw.products).length) entry.products = raw.products;
     return entry;
   }
 
@@ -3200,16 +3313,21 @@
       a.types.some(t => listActiveTypes.has(t)) &&
       (!listOpenOnly || isOpenNow(a)) &&
       (!listHideUnavailable || !a.unavailable) &&
-      (!listActiveProducts.size || a.products.some(p => listActiveProducts.has(p)))
+      (!listActiveProducts.size || Object.keys(a.products).some(p => listActiveProducts.has(p)))
     );
 
     if (q) {
       items = items.filter(a =>
         a.name.toLowerCase().includes(q) ||
         a.note.toLowerCase().includes(q) ||
-        a.products.some(p => (PRODUCTS[p]?.label || '').toLowerCase().includes(q))
+        Object.keys(a.products).some(p => (PRODUCTS[p]?.label || '').toLowerCase().includes(q))
       );
     }
+
+    // Ist genau ein Produkt-Filter aktiv, macht "Preisvergleich" mehr
+    // Sinn als Entfernung: günstigster zuerst, Standorte ohne Preis
+    // zu diesem Produkt (nur "gibt's hier" ohne Preisangabe) ans Ende.
+    const priceCompareId = listActiveProducts.size === 1 ? [...listActiveProducts][0] : null;
 
     if (lastKnownLocation) {
       items = items
@@ -3220,6 +3338,16 @@
       }
     } else {
       items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    }
+
+    if (priceCompareId) {
+      items = [...items].sort((a, b) => {
+        const pa = a.products[priceCompareId], pb = b.products[priceCompareId];
+        if (pa == null && pb == null) return 0;
+        if (pa == null) return 1;  // ohne Preisangabe ans Ende
+        if (pb == null) return -1;
+        return pa - pb; // günstigster zuerst
+      });
     }
 
     listItems.innerHTML = '';
@@ -3256,10 +3384,16 @@
         noteEl.textContent = a.note;
         body.appendChild(noteEl);
       }
-      if (a.products.length) {
+      const productEntries = Object.entries(a.products);
+      if (productEntries.length) {
         const prodEl = document.createElement('div');
         prodEl.className = 'list-item-note';
-        prodEl.textContent = a.products.map(p => PRODUCTS[p]?.label || p).join(' · ');
+        prodEl.textContent = productEntries
+          .map(([pid, price]) => {
+            const label = PRODUCTS[pid]?.label || pid;
+            return price != null ? `${label} (${formatPrice(price)})` : label;
+          })
+          .join(' · ');
         body.appendChild(prodEl);
       }
       if (a.unavailable) {
@@ -3279,7 +3413,14 @@
       el.appendChild(dot);
       el.appendChild(body);
 
-      if (a._dist !== undefined) {
+      if (priceCompareId) {
+        const price = a.products[priceCompareId];
+        const priceEl = document.createElement('div');
+        priceEl.className = 'list-item-dist';
+        priceEl.style.color = price != null ? 'var(--open-color)' : 'var(--text-dim)';
+        priceEl.textContent = price != null ? formatPrice(price) : 'kein Preis';
+        el.appendChild(priceEl);
+      } else if (a._dist !== undefined) {
         const distEl = document.createElement('div');
         distEl.className = 'list-item-dist';
         distEl.textContent = a._dist < 1000 ? Math.round(a._dist) + ' m' : (a._dist / 1000).toFixed(1) + ' km';
