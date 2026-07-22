@@ -1,11 +1,11 @@
 {
   "products": {
-    "zigaretten":  { "label": "Zigaretten" },
-    "tabak":       { "label": "Tabak (Drehtabak)" },
+    "zigaretten":  { "label": "Zigaretten",          "referenceAmount": 20, "referenceLabel": "Schachtel (20 Stk.)" },
+    "tabak":       { "label": "Tabak (Drehtabak)",   "referenceAmount": 30, "referenceLabel": "Beutel (30g)" },
     "papers":      { "label": "Papers/Filter" },
     "feuerzeuge":  { "label": "Feuerzeuge" },
     "getraenke":   { "label": "Getränke" },
     "snacks":      { "label": "Snacks" },
-    "kondome":     { "label": "Kondome" }
+    "kondome":     { "label": "Kondome",             "referenceAmount": 3,  "referenceLabel": "3er-Packung" }
   }
 }

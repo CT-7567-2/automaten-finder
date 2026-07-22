@@ -1309,6 +1309,19 @@
     if (!entry || entry.price == null) return null;
     return entry.price / (entry.amount || 1);
   }
+  // Rechnet den Stückpreis auf die in products.json hinterlegte
+  // "referenceAmount" (Vergleichsmenge) hoch, z.B. Preis pro Schachtel
+  // (20 Stk.) statt Preis pro einzelner Zigarette — deutlich
+  // intuitiver lesbar, ohne dass der eigentliche Vergleich unfair wird
+  // (Grundlage bleibt weiterhin der Stückpreis).
+  function compareUnitPrice(entry, pid) {
+    const up = unitPrice(entry);
+    if (up == null) return null;
+    return up * (PRODUCTS[pid]?.referenceAmount || 1);
+  }
+  function compareUnitLabel(pid) {
+    return PRODUCTS[pid]?.referenceLabel || 'Stk.';
+  }
 
   // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
   // Kategorien, z.B. "laden,automat") in ein Array gültiger Kategorie-IDs
@@ -1634,7 +1647,10 @@
           if (entry.price == null) {
             badge.textContent = label;
           } else if (entry.amount != null) {
-            badge.textContent = `${label} · ${formatPrice(entry.price)} / ${entry.amount} Stk. (${formatPrice(unitPrice(entry))}/Stk.)`;
+            const cu = compareUnitPrice(entry, pid);
+            const showCompare = cu != null && Math.abs(cu - entry.price) > 0.005;
+            const compareText = showCompare ? ` (≈ ${formatPrice(cu)}/${compareUnitLabel(pid)})` : '';
+            badge.textContent = `${label} · ${formatPrice(entry.price)} / ${entry.amount} Stk.${compareText}`;
           } else {
             badge.textContent = `${label} · ${formatPrice(entry.price)}`;
           }
@@ -3524,11 +3540,11 @@
 
     if (compareProductId && compareSortMode === 'price') {
       items = [...items].sort((a, b) => {
-        const ua = unitPrice(a.products[compareProductId]), ub = unitPrice(b.products[compareProductId]);
+        const ua = compareUnitPrice(a.products[compareProductId], compareProductId), ub = compareUnitPrice(b.products[compareProductId], compareProductId);
         if (ua == null && ub == null) return 0;
         if (ua == null) return 1;  // ohne Preisangabe ans Ende
         if (ub == null) return -1;
-        return ua - ub; // günstigster zuerst (pro Stück/Einheit)
+        return ua - ub; // günstigster zuerst (auf Vergleichsmenge normiert)
       });
     } else if (lastKnownLocation) {
       items = [...items].sort((a, b) => a._dist - b._dist); // nächster zuerst
@@ -3536,12 +3552,13 @@
       items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'de'));
     }
 
-    // Durchschnittspreis (pro Einheit) über alle aktuell gezeigten
-    // Standorte mit bekanntem Preis zu diesem Produkt — Grundlage für
+    // Durchschnittspreis (auf die Vergleichsmenge aus products.json
+    // normiert, z.B. "pro Schachtel" statt "pro Stück") über alle
+    // aktuell gezeigten Standorte mit bekanntem Preis — Grundlage für
     // die rote/grüne Abweichungsanzeige je Standort.
     let avgUnitPrice = null;
     if (compareProductId) {
-      const knownPrices = items.map(a => unitPrice(a.products[compareProductId])).filter(p => p != null);
+      const knownPrices = items.map(a => compareUnitPrice(a.products[compareProductId], compareProductId)).filter(p => p != null);
       if (knownPrices.length) {
         avgUnitPrice = knownPrices.reduce((sum, p) => sum + p, 0) / knownPrices.length;
       }
@@ -3554,7 +3571,7 @@
       avgLine.className = 'list-empty';
       avgLine.style.padding = '2px 4px 10px';
       avgLine.style.textAlign = 'left';
-      avgLine.textContent = `Ø-Preis ${PRODUCTS[compareProductId].label}: ${formatPrice(avgUnitPrice)} / Stk.`;
+      avgLine.textContent = `Ø-Preis ${PRODUCTS[compareProductId].label}: ${formatPrice(avgUnitPrice)} / ${compareUnitLabel(compareProductId)}`;
       listItems.appendChild(avgLine);
     }
 
@@ -3633,7 +3650,8 @@
 
       if (compareProductId && compareSortMode === 'price') {
         const entry = a.products[compareProductId];
-        const ua = unitPrice(entry);
+        const cu = compareUnitPrice(entry, compareProductId);
+        const refLabel = compareUnitLabel(compareProductId);
         const wrap = document.createElement('div');
         wrap.style.textAlign = 'right';
 
@@ -3644,14 +3662,20 @@
           priceEl.textContent = 'kein Preis';
         } else {
           priceEl.style.color = 'var(--text)';
-          priceEl.textContent = entry.amount != null
+          // Realer Packungspreis bleibt die Hauptzahl; der normierte
+          // Vergleichspreis (z.B. "≈ 8,50 €/Schachtel") steht nur
+          // zusätzlich dabei, wenn er sich vom tatsächlichen Preis
+          // unterscheidet (andere Packungsgröße als die Vergleichsmenge).
+          const rawText = entry.amount != null
             ? `${formatPrice(entry.price)} / ${entry.amount} Stk.`
             : formatPrice(entry.price);
+          const showCompare = cu != null && Math.abs(cu - entry.price) > 0.005;
+          priceEl.textContent = showCompare ? `${rawText} (≈ ${formatPrice(cu)}/${refLabel})` : rawText;
         }
         wrap.appendChild(priceEl);
 
-        if (ua != null && avgUnitPrice != null) {
-          const delta = ua - avgUnitPrice;
+        if (cu != null && avgUnitPrice != null) {
+          const delta = cu - avgUnitPrice;
           const deltaEl = document.createElement('div');
           deltaEl.className = 'price-delta';
           if (Math.abs(delta) < 0.005) {
@@ -3659,10 +3683,10 @@
             deltaEl.textContent = 'Ø-Preis';
           } else if (delta > 0) {
             deltaEl.style.color = 'var(--danger)';
-            deltaEl.textContent = `+${formatPrice(delta)}/Stk.`;
+            deltaEl.textContent = `+${formatPrice(delta)}/${refLabel}`;
           } else {
             deltaEl.style.color = 'var(--open-color)';
-            deltaEl.textContent = `−${formatPrice(Math.abs(delta))}/Stk.`;
+            deltaEl.textContent = `−${formatPrice(Math.abs(delta))}/${refLabel}`;
           }
           wrap.appendChild(deltaEl);
         }
