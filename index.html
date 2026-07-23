@@ -1343,6 +1343,13 @@
   function compareUnitLabel(pid) {
     return PRODUCTS[pid]?.referenceLabel || 'Stk.';
   }
+  // Einheit der eingegebenen Menge selbst (z.B. "Stk." bei Zigaretten,
+  // "L" bei Getränken, "g" bei losem Tabak) — unabhängig von der
+  // Vergleichsmenge/-label oben, die den NORMIERTEN Vergleichspreis
+  // beschriftet.
+  function amountUnitLabel(pid) {
+    return PRODUCTS[pid]?.amountUnit || 'Stk.';
+  }
 
   // Wandelt das "type"-Feld (String, ggf. kommagetrennt für mehrere
   // Kategorien, z.B. "laden,automat") in ein Array gültiger Kategorie-IDs
@@ -1671,7 +1678,7 @@
             const cu = compareUnitPrice(entry, pid);
             const showCompare = cu != null && Math.abs(cu - entry.price) > 0.005;
             const compareText = showCompare ? ` (≈ ${formatPrice(cu)}/${compareUnitLabel(pid)})` : '';
-            badge.textContent = `${label} · ${formatPrice(entry.price)} / ${entry.amount} Stk.${compareText}`;
+            badge.textContent = `${label} · ${formatPrice(entry.price)} / ${entry.amount} ${amountUnitLabel(pid)}${compareText}`;
           } else {
             badge.textContent = `${label} · ${formatPrice(entry.price)}`;
           }
@@ -2163,12 +2170,12 @@
       const amountInput = document.createElement('input');
       amountInput.type = 'number';
       amountInput.className = 'product-amount-input';
-      amountInput.step = '1';
-      amountInput.min = '1';
-      amountInput.placeholder = 'z.B. 20';
+      amountInput.step = '0.01';
+      amountInput.min = '0.01';
+      amountInput.placeholder = PRODUCTS[pid].amountUnit === 'L' ? 'z.B. 0,5' : 'z.B. 20';
       const amountUnit = document.createElement('span');
       amountUnit.className = 'product-price-unit';
-      amountUnit.textContent = 'Stk.';
+      amountUnit.textContent = amountUnitLabel(pid);
 
       inputsWrap.appendChild(priceLabel);
       inputsWrap.appendChild(priceInput);
@@ -2231,7 +2238,7 @@
       .map(([pid, entry]) => {
         const label = PRODUCTS[pid]?.label || pid;
         if (entry?.price == null) return label;
-        const amountText = entry.amount != null ? ` / ${entry.amount} Stk.` : '';
+        const amountText = entry.amount != null ? ` / ${entry.amount} ${amountUnitLabel(pid)}` : '';
         return `${label} (${formatPrice(entry.price)}${amountText})`;
       })
       .join(', ');
@@ -2847,7 +2854,7 @@
             const [pid, priceStr, amountStr] = entry.split(':');
             const name = PRODUCTS[pid]?.label || pid;
             if (!priceStr) return name;
-            const amountText = amountStr ? ` / ${amountStr} Stk.` : '';
+            const amountText = amountStr ? ` / ${amountStr} ${amountUnitLabel(pid)}` : '';
             return `${name} (${formatPrice(Number(priceStr))}${amountText})`;
           }).join(', ')
         : '–';
@@ -3646,7 +3653,7 @@
           .map(([pid, entry]) => {
             const label = PRODUCTS[pid]?.label || pid;
             if (entry.price == null) return label;
-            const amountText = entry.amount != null ? ` / ${entry.amount} Stk.` : '';
+            const amountText = entry.amount != null ? ` / ${entry.amount} ${amountUnitLabel(pid)}` : '';
             return `${label} (${formatPrice(entry.price)}${amountText})`;
           })
           .join(' · ');
@@ -3684,7 +3691,7 @@
         } else {
           priceEl.style.color = 'var(--text)';
           priceEl.textContent = entry.amount != null
-            ? `${formatPrice(entry.price)} / ${entry.amount} Stk.`
+            ? `${formatPrice(entry.price)} / ${entry.amount} ${amountUnitLabel(compareProductId)}`
             : formatPrice(entry.price);
         }
         wrap.appendChild(priceEl);

@@ -1,11 +1,11 @@
 {
   "products": {
-    "zigaretten":  { "label": "Zigaretten",          "referenceAmount": 20, "referenceLabel": "Schachtel (20 Stk.)" },
-    "tabak":       { "label": "Tabak (Drehtabak)",   "referenceAmount": 30, "referenceLabel": "Beutel (30g)" },
-    "papers":      { "label": "Papers/Filter" },
-    "feuerzeuge":  { "label": "Feuerzeuge" },
-    "getraenke":   { "label": "Getränke" },
-    "snacks":      { "label": "Snacks" },
-    "kondome":     { "label": "Kondome",             "referenceAmount": 3,  "referenceLabel": "3er-Packung" }
+    "zigaretten":  { "label": "Zigaretten",          "amountUnit": "Stk.", "referenceAmount": 20,  "referenceLabel": "Schachtel (20 Stk.)" },
+    "tabak":       { "label": "Tabak (Drehtabak)",   "amountUnit": "g",    "referenceAmount": 30,  "referenceLabel": "Beutel (30g)" },
+    "papers":      { "label": "Papers/Filter",       "amountUnit": "Stk." },
+    "feuerzeuge":  { "label": "Feuerzeuge",          "amountUnit": "Stk." },
+    "getraenke":   { "label": "Getränke",            "amountUnit": "L",    "referenceAmount": 1,   "referenceLabel": "Liter" },
+    "snacks":      { "label": "Snacks",              "amountUnit": "Stk." },
+    "kondome":     { "label": "Kondome",             "amountUnit": "Stk.", "referenceAmount": 3,   "referenceLabel": "3er-Packung" }
   }
 }
