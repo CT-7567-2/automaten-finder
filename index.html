@@ -941,6 +941,27 @@
     white-space: nowrap;
     margin-top: 1px;
   }
+  .list-item-price-wrap {
+    flex-shrink: 0;
+    max-width: 40%;
+    text-align: right;
+  }
+  .list-item-price-wrap .list-item-dist {
+    white-space: normal;
+    word-break: break-word;
+  }
+  .list-item-price-wrap .price-delta {
+    white-space: normal;
+    word-break: break-word;
+  }
+  .price-compare-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-dim);
+    white-space: normal;
+    word-break: break-word;
+    margin-top: 1px;
+  }
 
   .list-empty {
     text-align: center;
@@ -3653,7 +3674,7 @@
         const cu = compareUnitPrice(entry, compareProductId);
         const refLabel = compareUnitLabel(compareProductId);
         const wrap = document.createElement('div');
-        wrap.style.textAlign = 'right';
+        wrap.className = 'list-item-price-wrap';
 
         const priceEl = document.createElement('div');
         priceEl.className = 'list-item-dist';
@@ -3662,17 +3683,23 @@
           priceEl.textContent = 'kein Preis';
         } else {
           priceEl.style.color = 'var(--text)';
-          // Realer Packungspreis bleibt die Hauptzahl; der normierte
-          // Vergleichspreis (z.B. "≈ 8,50 €/Schachtel") steht nur
-          // zusätzlich dabei, wenn er sich vom tatsächlichen Preis
-          // unterscheidet (andere Packungsgröße als die Vergleichsmenge).
-          const rawText = entry.amount != null
+          priceEl.textContent = entry.amount != null
             ? `${formatPrice(entry.price)} / ${entry.amount} Stk.`
             : formatPrice(entry.price);
-          const showCompare = cu != null && Math.abs(cu - entry.price) > 0.005;
-          priceEl.textContent = showCompare ? `${rawText} (≈ ${formatPrice(cu)}/${refLabel})` : rawText;
         }
         wrap.appendChild(priceEl);
+
+        // Normierter Vergleichspreis (z.B. "≈ 7,92 €/Schachtel") nur als
+        // eigene, kleinere Zeile — und nur, wenn er sich vom tatsächlichen
+        // Preis unterscheidet (andere Packungsgröße als Vergleichsmenge).
+        // Eigene Zeile statt an den Preis dranhängen, damit lange Labels
+        // auf schmalen Bildschirmen nicht mit dem Namen überlappen.
+        if (entry.price != null && cu != null && Math.abs(cu - entry.price) > 0.005) {
+          const compareEl = document.createElement('div');
+          compareEl.className = 'price-compare-note';
+          compareEl.textContent = `≈ ${formatPrice(cu)}/${refLabel}`;
+          wrap.appendChild(compareEl);
+        }
 
         if (cu != null && avgUnitPrice != null) {
           const delta = cu - avgUnitPrice;
