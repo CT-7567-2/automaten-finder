@@ -186,6 +186,9 @@
   }
   .legend-chip .dot.shape-circle { border-radius: 50%; }
   .legend-chip .dot.shape-diamond { border-radius: 2px 2px 2px 0; transform: rotate(45deg); }
+  .legend-chip .dot.shape-square { border-radius: 1px; }
+  .legend-chip .dot.shape-triangle { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+  .legend-chip .dot.shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
 
   /* --- Boolescher Umschalt-Button (z.B. "Nur jetzt geöffnete") --- */
   .toggle-btn {
@@ -400,8 +403,32 @@
     height: 20px;
     border-radius: 50%;
   }
+  .marker-dot.shape-square {
+    border-radius: 3px;
+  }
+  /* Dreieck/Stern nutzen clip-path statt border-radius — dabei werden
+     Rahmen (border) und Schlagschatten (box-shadow) vom Browser mit
+     zugeschnitten und wären unsichtbar. Deshalb hier stattdessen
+     filter:drop-shadow (folgt der zugeschnittenen Form) und eine
+     eigene Puls-Animation über drop-shadow statt box-shadow. */
+  .marker-dot.shape-triangle {
+    border: none;
+    box-shadow: none;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55));
+  }
+  .marker-dot.shape-star {
+    border: none;
+    box-shadow: none;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55));
+  }
   .marker-dot.nearest {
     animation: pulse-generic 1.4s ease-in-out infinite;
+  }
+  .marker-dot.shape-triangle.nearest,
+  .marker-dot.shape-star.nearest {
+    animation: pulse-generic-clip 1.4s ease-in-out infinite;
   }
   .marker-dot.is-closed {
     opacity: 0.4;
@@ -409,6 +436,10 @@
   @keyframes pulse-generic {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.55); }
     50% { box-shadow: 0 0 0 8px rgba(255,255,255,0); }
+  }
+  @keyframes pulse-generic-clip {
+    0%, 100% { filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55)) drop-shadow(0 0 0 rgba(255,255,255,0.7)); }
+    50%      { filter: drop-shadow(0 2px 3px rgba(0,0,0,0.55)) drop-shadow(0 0 5px rgba(255,255,255,0.95)); }
   }
 
   .user-icon {
@@ -912,6 +943,9 @@
   }
   .list-item .dot.shape-circle { border-radius: 50%; }
   .list-item .dot.shape-diamond { border-radius: 2px 2px 2px 0; transform: rotate(45deg); }
+  .list-item .dot.shape-square { border-radius: 1px; }
+  .list-item .dot.shape-triangle { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+  .list-item .dot.shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
 
   .list-item-body { flex: 1; min-width: 0; }
   .list-item-name {
@@ -1268,6 +1302,10 @@
   // ============================================================
 
   // ---- Kategorien (werden aus categories.json geladen) ----
+  // Jede Kategorie braucht: label, labelPlural, color (Hex) und shape.
+  // Verfügbare Formen (shape): 'circle', 'diamond', 'square',
+  // 'triangle', 'star'. Unbekannte/fehlende Werte fallen automatisch
+  // auf 'diamond' zurück.
   let CATEGORIES = {};
   let DEFAULT_CATEGORY = 'automat';
   const FALLBACK_CATEGORIES = {
@@ -1591,8 +1629,10 @@
     return L.divIcon({ className: '', html, iconSize: size, iconAnchor: [size[0] / 2, size[1] / 2] });
   }
 
+  const VALID_SHAPES = ['circle', 'diamond', 'square', 'triangle', 'star'];
   function shapeClass(type) {
-    return CATEGORIES[categoryOf(type)].shape === 'circle' ? 'shape-circle' : 'shape-diamond';
+    const shape = CATEGORIES[categoryOf(type)].shape;
+    return 'shape-' + (VALID_SHAPES.includes(shape) ? shape : 'diamond');
   }
 
   function makeCategoryIcon(types, dimmed) {
