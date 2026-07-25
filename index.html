@@ -3695,8 +3695,10 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'list-empty';
-      empty.textContent = (listActiveProducts.size >= 2 && listProductMatchMode === 'all')
-        ? 'Kein Standort mit allen ausgewählten Produkten gefunden.'
+      empty.textContent = listActiveProducts.size >= 2
+        ? (listProductMatchMode === 'all'
+            ? 'Kein Standort mit allen ausgewählten Produkten gefunden.'
+            : 'Kein Standort mit einem der ausgewählten Produkte gefunden.')
         : compareProductId
           ? `Kein Standort mit ${PRODUCTS[compareProductId].label} gefunden.`
           : activeRadius
