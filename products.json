@@ -6,8 +6,6 @@
     "feuerzeuge":  { "label": "Feuerzeuge",          "amountUnit": "Stk." },
     "getraenke":   { "label": "Getränke",            "amountUnit": "L",    "referenceAmount": 1,   "referenceLabel": "Liter" },
     "snacks":      { "label": "Snacks",              "amountUnit": "Stk." },
-    "kondome":     { "label": "Kondome",             "amountUnit": "Stk.", "referenceAmount": 3,   "referenceLabel": "3 Stk." },
-
     "doener":      { "label": "Döner",               "amountUnit": "Stk." },
     "currywurst":  { "label": "Currywurst",          "amountUnit": "Stk." },
     "pommes":      { "label": "Pommes",              "amountUnit": "Portion" },
