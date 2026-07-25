@@ -775,6 +775,13 @@
     padding: 7px 8px;
     border-radius: 8px;
   }
+  .match-mode-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
   .compare-mode-toggle {
     display: flex;
     border: 1px solid var(--panel-border);
@@ -1276,6 +1283,13 @@
     <input type="text" class="modal-input" id="listSearch" placeholder="Suche nach Name, Notiz oder Produkt …">
     <div class="legend-row" id="listFilterRow"></div>
     <div class="product-filter-row" id="listProductRow"></div>
+    <div class="compare-row" id="productMatchRow" style="display:none;">
+      <span class="match-mode-label">Standort muss haben:</span>
+      <div class="compare-mode-toggle" id="productMatchToggle">
+        <button type="button" class="compare-mode-btn" data-mode="any">Mind. 1</button>
+        <button type="button" class="compare-mode-btn" data-mode="all">Alle</button>
+      </div>
+    </div>
     <div class="compare-row" id="compareRow" style="display:none;">
       <select id="compareSelect" class="compare-select"></select>
       <div class="compare-mode-toggle" id="compareModeToggle">
@@ -1611,6 +1625,7 @@
   let listOpenOnly = false;
   let listHideUnavailable = false;
   let listActiveProducts = new Set(); // leer = kein Produkt-Filter aktiv
+  let listProductMatchMode = 'any'; // 'any' = mind. 1 der gewählten Produkte, 'all' = alle müssen vorhanden sein
 
   // ============================================================
   // Karte initialisieren (vorläufige Ansicht, bis config.json geladen ist)
@@ -3419,6 +3434,7 @@
         if (listActiveProducts.has(pid)) listActiveProducts.delete(pid);
         else listActiveProducts.add(pid);
         refreshProductFilterChips();
+        refreshProductMatchRow();
         refreshCompareRow();
         renderList(listSearch.value);
       });
@@ -3437,6 +3453,26 @@
   // Vergleichs-Grundlage genutzt; bei mehreren wählt man per Dropdown,
   // welches der ausgewählten Produkte verglichen werden soll. Zusätzlich
   // lässt sich zwischen "günstigster zuerst" und "nächster zuerst"
+  // ---- Match-Modus für die Produkt-Filter-Chips: "Mind. 1" (ODER,
+  // Standard) oder "Alle" (UND) — erscheint nur, wenn 2+ Produkte
+  // gleichzeitig ausgewählt sind, da bei 0/1 kein Unterschied besteht.
+  const productMatchRow = document.getElementById('productMatchRow');
+  const productMatchToggle = document.getElementById('productMatchToggle');
+
+  function refreshProductMatchRow() {
+    productMatchRow.style.display = listActiveProducts.size >= 2 ? 'flex' : 'none';
+    [...productMatchToggle.children].forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === listProductMatchMode);
+    });
+  }
+  productMatchToggle.addEventListener('click', e => {
+    const btn = e.target.closest('.compare-mode-btn');
+    if (!btn) return;
+    listProductMatchMode = btn.dataset.mode;
+    refreshProductMatchRow();
+    renderList(listSearch.value);
+  });
+
   // umschalten (Entfernung nur mit bekanntem Standort sinnvoll).
   const compareRow = document.getElementById('compareRow');
   const compareSelect = document.getElementById('compareSelect');
@@ -3573,13 +3609,18 @@
 
   function renderList(query) {
     const q = query.trim().toLowerCase();
+    refreshProductMatchRow();
     refreshCompareRow();
 
     let items = getVisibleAutomaten().filter(a =>
       a.types.some(t => listActiveTypes.has(t)) &&
       (!listOpenOnly || isOpenNow(a)) &&
       (!listHideUnavailable || !a.unavailable) &&
-      (!listActiveProducts.size || Object.keys(a.products).some(p => listActiveProducts.has(p)))
+      (!listActiveProducts.size || (
+        listProductMatchMode === 'all'
+          ? [...listActiveProducts].every(p => Object.prototype.hasOwnProperty.call(a.products, p))
+          : Object.keys(a.products).some(p => listActiveProducts.has(p))
+      ))
     );
 
     if (q) {
@@ -3654,11 +3695,13 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'list-empty';
-      empty.textContent = compareProductId
-        ? `Kein Standort mit ${PRODUCTS[compareProductId].label} gefunden.`
-        : activeRadius
-          ? `Keine Standorte im Umkreis von ${activeRadius < 1000 ? activeRadius + ' m' : (activeRadius / 1000) + ' km'}.`
-          : 'Keine Standorte gefunden.';
+      empty.textContent = (listActiveProducts.size >= 2 && listProductMatchMode === 'all')
+        ? 'Kein Standort mit allen ausgewählten Produkten gefunden.'
+        : compareProductId
+          ? `Kein Standort mit ${PRODUCTS[compareProductId].label} gefunden.`
+          : activeRadius
+            ? `Keine Standorte im Umkreis von ${activeRadius < 1000 ? activeRadius + ' m' : (activeRadius / 1000) + ' km'}.`
+            : 'Keine Standorte gefunden.';
       listItems.appendChild(empty);
       return;
     }
