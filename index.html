@@ -37,6 +37,36 @@
     overflow: hidden;
   }
 
+  /* --- Tab-Umschalter (Karte / Bewertungen) --- */
+  .tab-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 40;
+    display: flex;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 12px 8px;
+    cursor: pointer;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--amber); }
+
+  #mapView {
+    position: absolute;
+    top: 44px; left: 0; right: 0; bottom: 0;
+  }
+
   #map {
     position: absolute;
     inset: 0;
@@ -1132,9 +1162,114 @@
   #importOverlay.map-mode #importReviewList {
     display: none;
   }
+
+  /* --- Bewertungen-Ansicht --- */
+  #ratingsView {
+    position: absolute;
+    top: 44px; left: 0; right: 0; bottom: 0;
+    display: none;
+    overflow-y: auto;
+    background: var(--bg);
+    padding: 16px;
+  }
+  #ratingsView.active { display: block; }
+
+  .ratings-header { margin-bottom: 12px; }
+  .ratings-title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 19px;
+    margin-bottom: 6px;
+  }
+
+  .rating-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .rating-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .rating-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .rating-rank {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    width: 22px;
+    padding-top: 2px;
+  }
+  .rating-rank.top1 { color: var(--amber); font-weight: 700; }
+  .rating-card-body { flex: 1; min-width: 0; }
+  .rating-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .rating-category {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 1px;
+  }
+  .rating-avg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--amber);
+    flex-shrink: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .rating-avg-count {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    display: block;
+    margin-top: 1px;
+  }
+  .rating-delete {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 0 0 0 6px;
+    flex-shrink: 0;
+  }
+  .rating-delete:hover { color: var(--danger); }
+
+  .star-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .star-btn {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--panel-border);
+    cursor: pointer;
+    padding: 2px;
+  }
+  .star-btn.filled { color: var(--amber); }
+  .my-rating-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
+
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" id="tabBtnMap" data-tab="map">Karte</button>
+  <button class="tab-btn" id="tabBtnRatings" data-tab="ratings">★ Bewertungen</button>
+</div>
+
+<div id="mapView">
 
 <div id="map"></div>
 
@@ -1274,6 +1409,56 @@
   </div>
 </div>
 
+</div><!-- /mapView -->
+
+<div id="ratingsView">
+  <div class="ratings-header">
+    <div class="ratings-title">Bewertungen</div>
+    <button type="button" class="hours-toggle-link" id="ratingsMoreToggle" style="padding:4px 0;">+ Mehr Optionen (Export, Zurücksetzen)</button>
+    <div class="more-options" id="ratingsMoreOptions">
+      <button class="export-link" id="ratingsExportBtn">Bewertungen exportieren (für alle übernehmen)</button>
+      <button class="export-link" id="ratingsResetBtn">Lokale Bewertungen zurücksetzen</button>
+    </div>
+  </div>
+
+  <input type="text" class="modal-input" id="ratingsSearch" placeholder="Suche nach Name oder Kategorie …">
+
+  <button type="button" class="modal-btn cancel" id="ratingsAddBtn" style="margin-bottom:12px;">+ Neues Getränk/Ding hinzufügen</button>
+
+  <div class="rating-list" id="ratingsList"></div>
+</div>
+
+<div class="modal-overlay" id="ratingAddOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Neues Getränk/Ding</div>
+    <input type="text" class="modal-input" id="ratingAddName" placeholder="Name, z.B. Astra" maxlength="60">
+    <input type="text" class="modal-input" id="ratingAddCategory" placeholder="Kategorie (optional), z.B. Bier" maxlength="40">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="ratingAddCancel">Abbrechen</button>
+      <button class="modal-btn save" id="ratingAddSave">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="ratingsExportOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Bewertungen exportieren</div>
+    <div class="modal-coords">
+      Kopiere den Text unten und ersetze damit den kompletten Inhalt<br>
+      der Datei <b>ratings.json</b> in eurem GitHub-Repository.<br>
+      Danach bei allen einmal "Lokale Bewertungen zurücksetzen" nutzen,
+      damit niemand versehentlich doppelt mitgezählt wird.
+    </div>
+    <textarea id="ratingsExportTextarea" class="modal-input" style="height:180px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:none;" readonly></textarea>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="ratingsExportClose">Schließen</button>
+      <button class="modal-btn cancel" id="ratingsExportDownload">Datei herunterladen</button>
+      <button class="modal-btn save" id="ratingsExportCopy">Kopieren</button>
+    </div>
+  </div>
+</div>
+
+
 <div class="list-overlay" id="listOverlay">
   <div class="list-panel">
     <div class="list-header">
@@ -1313,6 +1498,7 @@
   //   products.json    - Welche Produkte/Sortiment ankreuzbar sind
   //   config.json      - Karten-Standardansicht, Umkreis-Stufen, Texte
   //   automaten.json   - Die eigentlichen Standorte
+  //   ratings.json     - Bier & ähnliche Dinge im "Bewertungen"-Tab
   // ============================================================
 
   // ---- Kategorien (werden aus categories.json geladen) ----
@@ -1942,6 +2128,20 @@
       map.setView([seedAutomaten[0].lat, seedAutomaten[0].lng], (CONFIG.map && CONFIG.map.defaultZoom) || 14);
     }
     renderMarkers();
+
+    // 4) Bewertungen laden (Bier & ähnliche Dinge) — optional, eigene
+    // Ansicht, bricht bei Fehler nicht die restliche App
+    try {
+      const ratRes = await fetch('./ratings.json', { cache: 'no-store' });
+      if (!ratRes.ok) throw new Error('HTTP ' + ratRes.status);
+      const ratData = await ratRes.json();
+      seedRatingItems = Array.isArray(ratData.items) ? ratData.items : [];
+      ratingFileIds = new Set(seedRatingItems.map(i => i.id));
+    } catch (err) {
+      console.warn('ratings.json konnte nicht geladen werden, Bewertungen-Tab bleibt leer:', err);
+      seedRatingItems = [];
+    }
+    renderRatingsList('');
 
     // ---- Direktlink zu einem einzelnen Standort (?id=...) ----
     // Praktisch zum Teilen, z.B. "Kannst du den hier löschen" –
@@ -3850,6 +4050,322 @@
       renderList(listSearch.value);
     }
   }, 60000);
+
+  // ============================================================
+  // TAB-UMSCHALTUNG (Karte / Bewertungen)
+  // ============================================================
+  const tabBar = document.getElementById('tabBar');
+  const tabBtnMap = document.getElementById('tabBtnMap');
+  const tabBtnRatings = document.getElementById('tabBtnRatings');
+  const mapViewEl = document.getElementById('mapView');
+  const ratingsViewEl = document.getElementById('ratingsView');
+
+  function setActiveTab(tab) {
+    const isRatings = tab === 'ratings';
+    tabBtnMap.classList.toggle('active', !isRatings);
+    tabBtnRatings.classList.toggle('active', isRatings);
+    mapViewEl.style.display = isRatings ? 'none' : 'block';
+    ratingsViewEl.classList.toggle('active', isRatings);
+    if (!isRatings) {
+      // Leaflet berechnet die Kartengröße nur korrekt, wenn der
+      // Container sichtbar ist — nach dem Zurückwechseln daher neu
+      // berechnen, sonst bleibt die Karte teilweise leer/verschoben.
+      setTimeout(() => map.invalidateSize(), 0);
+    }
+  }
+  tabBtnMap.addEventListener('click', () => setActiveTab('map'));
+  tabBtnRatings.addEventListener('click', () => setActiveTab('ratings'));
+
+  // ============================================================
+  // BEWERTUNGEN (Bier & ähnliche Dinge)
+  // ------------------------------------------------------------
+  // Funktioniert nach demselben Prinzip wie die Standorte: ein
+  // gemeinsamer Grundbestand aus ratings.json + lokale Ergänzungen
+  // (eigene Bewertung, neu hinzugefügte Getränke, gelöschte) im
+  // Browser. Über "Bewertungen exportieren" bringt man seinen Stand
+  // in die gemeinsame ratings.json ein — danach bei allen einmal
+  // "Lokale Bewertungen zurücksetzen", damit niemand doppelt
+  // mitgezählt wird (gleiches Prinzip wie bei den Standorten).
+  // ============================================================
+  let seedRatingItems = [];
+  let ratingFileIds = new Set();
+
+  const STORAGE_RATING_CUSTOM = 'automatfinder_rating_custom';
+  const STORAGE_RATING_DELETED = 'automatfinder_rating_deleted';
+  const STORAGE_MY_RATINGS = 'automatfinder_my_ratings';
+
+  function loadRatingCustom() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_RATING_CUSTOM)) || []; }
+    catch { return []; }
+  }
+  function saveRatingCustom(list) { localStorage.setItem(STORAGE_RATING_CUSTOM, JSON.stringify(list)); }
+  function loadRatingDeleted() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_RATING_DELETED)) || []; }
+    catch { return []; }
+  }
+  function saveRatingDeleted(list) { localStorage.setItem(STORAGE_RATING_DELETED, JSON.stringify(list)); }
+  function loadMyRatings() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_MY_RATINGS)) || {}; }
+    catch { return {}; }
+  }
+  function saveMyRatings(obj) { localStorage.setItem(STORAGE_MY_RATINGS, JSON.stringify(obj)); }
+
+  // Liefert alle sichtbaren Bewertungs-Items inkl. des lokal
+  // eingerechneten eigenen Sterne-Werts (falls vorhanden, aber noch
+  // nicht in ratings.json eingeflossen).
+  function getVisibleRatingItems() {
+    const deleted = loadRatingDeleted();
+    const combined = [...seedRatingItems, ...loadRatingCustom()];
+    const mine = loadMyRatings();
+    return combined
+      .filter(it => !deleted.includes(it.id))
+      .map(it => {
+        const baseSum = Number(it.ratingSum) || 0;
+        const baseCount = Number(it.ratingCount) || 0;
+        const myValue = mine[it.id] || null;
+        const effSum = baseSum + (myValue ? myValue : 0);
+        const effCount = baseCount + (myValue ? 1 : 0);
+        return {
+          id: it.id,
+          name: it.name || '',
+          category: it.category || '',
+          myRating: myValue,
+          effectiveAvg: effCount ? effSum / effCount : null,
+          effectiveCount: effCount,
+          baseSum, baseCount
+        };
+      });
+  }
+
+  const ratingsList = document.getElementById('ratingsList');
+  const ratingsSearch = document.getElementById('ratingsSearch');
+
+  function renderRatingsList(query) {
+    const q = query.trim().toLowerCase();
+    let items = getVisibleRatingItems();
+    if (q) {
+      items = items.filter(it => it.name.toLowerCase().includes(q) || it.category.toLowerCase().includes(q));
+    }
+    // Ranking: höchster Schnitt zuerst; noch unbewertete Dinge ans Ende
+    items.sort((a, b) => {
+      if (a.effectiveAvg == null && b.effectiveAvg == null) return a.name.localeCompare(b.name, 'de');
+      if (a.effectiveAvg == null) return 1;
+      if (b.effectiveAvg == null) return -1;
+      return b.effectiveAvg - a.effectiveAvg;
+    });
+
+    ratingsList.innerHTML = '';
+
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.textContent = 'Nichts gefunden — leg doch das erste Getränk an!';
+      ratingsList.appendChild(empty);
+      return;
+    }
+
+    items.forEach((it, i) => {
+      const card = document.createElement('div');
+      card.className = 'rating-card';
+
+      const top = document.createElement('div');
+      top.className = 'rating-card-top';
+
+      const rank = document.createElement('div');
+      rank.className = 'rating-rank' + (i === 0 && it.effectiveAvg != null ? ' top1' : '');
+      rank.textContent = it.effectiveAvg != null ? '#' + (i + 1) : '–';
+
+      const body = document.createElement('div');
+      body.className = 'rating-card-body';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'rating-name';
+      nameEl.textContent = it.name;
+      body.appendChild(nameEl);
+      if (it.category) {
+        const catEl = document.createElement('div');
+        catEl.className = 'rating-category';
+        catEl.textContent = it.category;
+        body.appendChild(catEl);
+      }
+
+      const avg = document.createElement('div');
+      avg.className = 'rating-avg';
+      if (it.effectiveAvg != null) {
+        avg.innerHTML = `★ ${it.effectiveAvg.toFixed(1)}<span class="rating-avg-count">${it.effectiveCount} Bewertung${it.effectiveCount === 1 ? '' : 'en'}</span>`;
+      } else {
+        avg.innerHTML = `<span class="rating-avg-count">noch keine</span>`;
+      }
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'rating-delete';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Löschen';
+      delBtn.addEventListener('click', () => deleteRatingItem(it.id));
+
+      top.appendChild(rank);
+      top.appendChild(body);
+      top.appendChild(avg);
+      top.appendChild(delBtn);
+      card.appendChild(top);
+
+      const starRow = document.createElement('div');
+      starRow.className = 'star-row';
+      for (let s = 1; s <= 5; s++) {
+        const starBtn = document.createElement('button');
+        starBtn.className = 'star-btn' + (it.myRating != null && s <= it.myRating ? ' filled' : '');
+        starBtn.textContent = '★';
+        starBtn.addEventListener('click', () => setMyRating(it.id, s));
+        starRow.appendChild(starBtn);
+      }
+      card.appendChild(starRow);
+
+      if (it.myRating != null) {
+        const hint = document.createElement('div');
+        hint.className = 'my-rating-hint';
+        hint.textContent = `Deine Bewertung: ${it.myRating} ★ (nochmal tippen ändert sie)`;
+        card.appendChild(hint);
+      }
+
+      ratingsList.appendChild(card);
+    });
+  }
+
+  function setMyRating(id, value) {
+    const mine = loadMyRatings();
+    mine[id] = mine[id] === value ? null : value; // erneut denselben Wert tippen = zurücksetzen
+    if (mine[id] == null) delete mine[id];
+    saveMyRatings(mine);
+    renderRatingsList(ratingsSearch.value);
+  }
+
+  function deleteRatingItem(id) {
+    if (!confirm('Dieses Getränk/Ding wirklich löschen?')) return;
+    if (ratingFileIds.has(id)) {
+      const deleted = loadRatingDeleted();
+      if (!deleted.includes(id)) { deleted.push(id); saveRatingDeleted(deleted); }
+    } else {
+      saveRatingCustom(loadRatingCustom().filter(it => it.id !== id));
+    }
+    const mine = loadMyRatings();
+    if (mine[id] != null) { delete mine[id]; saveMyRatings(mine); }
+    renderRatingsList(ratingsSearch.value);
+  }
+
+  ratingsSearch.addEventListener('input', () => renderRatingsList(ratingsSearch.value));
+
+  // ---- "Mehr Optionen" (Export/Zurücksetzen) einklappbar ----
+  const ratingsMoreToggle = document.getElementById('ratingsMoreToggle');
+  const ratingsMoreOptions = document.getElementById('ratingsMoreOptions');
+  ratingsMoreToggle.addEventListener('click', () => {
+    const isOpen = ratingsMoreOptions.classList.toggle('visible');
+    ratingsMoreToggle.textContent = isOpen
+      ? '– Mehr Optionen einklappen'
+      : '+ Mehr Optionen (Export, Zurücksetzen)';
+  });
+
+  // ---- Neues Getränk/Ding hinzufügen ----
+  const ratingAddOverlay = document.getElementById('ratingAddOverlay');
+  const ratingAddName = document.getElementById('ratingAddName');
+  const ratingAddCategory = document.getElementById('ratingAddCategory');
+  const ratingsAddBtn = document.getElementById('ratingsAddBtn');
+  const ratingAddCancel = document.getElementById('ratingAddCancel');
+  const ratingAddSave = document.getElementById('ratingAddSave');
+
+  function makeRatingId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'rating-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  ratingsAddBtn.addEventListener('click', () => {
+    ratingAddName.value = '';
+    ratingAddCategory.value = '';
+    ratingAddOverlay.classList.add('visible');
+    setTimeout(() => ratingAddName.focus(), 50);
+  });
+  ratingAddCancel.addEventListener('click', () => ratingAddOverlay.classList.remove('visible'));
+  ratingAddOverlay.addEventListener('click', e => { if (e.target === ratingAddOverlay) ratingAddOverlay.classList.remove('visible'); });
+  ratingAddSave.addEventListener('click', () => {
+    const name = ratingAddName.value.trim();
+    if (!name) { ratingAddName.focus(); return; }
+    const custom = loadRatingCustom();
+    custom.push({
+      id: makeRatingId(),
+      name,
+      category: ratingAddCategory.value.trim(),
+      ratingSum: 0,
+      ratingCount: 0
+    });
+    saveRatingCustom(custom);
+    ratingAddOverlay.classList.remove('visible');
+    renderRatingsList(ratingsSearch.value);
+  });
+  ratingAddName.addEventListener('keydown', e => { if (e.key === 'Enter') ratingAddSave.click(); });
+
+  // ---- Bewertungen exportieren ----
+  const ratingsExportBtn = document.getElementById('ratingsExportBtn');
+  const ratingsExportOverlay = document.getElementById('ratingsExportOverlay');
+  const ratingsExportTextarea = document.getElementById('ratingsExportTextarea');
+  const ratingsExportClose = document.getElementById('ratingsExportClose');
+  const ratingsExportDownload = document.getElementById('ratingsExportDownload');
+  const ratingsExportCopy = document.getElementById('ratingsExportCopy');
+
+  ratingsExportBtn.addEventListener('click', () => {
+    const list = getVisibleRatingItems().map(it => ({
+      id: it.id,
+      name: it.name,
+      category: it.category,
+      ratingSum: Math.round((it.baseSum + (it.myRating ? it.myRating : 0)) * 100) / 100,
+      ratingCount: it.baseCount + (it.myRating ? 1 : 0)
+    }));
+    ratingsExportTextarea.value = JSON.stringify({ items: list }, null, 2);
+    ratingsExportOverlay.classList.add('visible');
+  });
+  ratingsExportClose.addEventListener('click', () => ratingsExportOverlay.classList.remove('visible'));
+  ratingsExportOverlay.addEventListener('click', e => { if (e.target === ratingsExportOverlay) ratingsExportOverlay.classList.remove('visible'); });
+  ratingsExportCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(ratingsExportTextarea.value);
+      ratingsExportCopy.textContent = 'Kopiert ✓';
+      setTimeout(() => { ratingsExportCopy.textContent = 'Kopieren'; }, 1800);
+    } catch {
+      ratingsExportTextarea.select();
+      document.execCommand('copy');
+    }
+  });
+  ratingsExportDownload.addEventListener('click', () => {
+    const blob = new Blob([ratingsExportTextarea.value], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const now = new Date();
+    const dateStamp = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n, i) => i === 0 ? n : String(n).padStart(2, '0')).join('-');
+    const timeStamp = [now.getHours(), now.getMinutes(), now.getSeconds()].map(n => String(n).padStart(2, '0')).join('');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ratings-export-${dateStamp}-${timeStamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    ratingsExportDownload.textContent = 'Heruntergeladen ✓';
+    setTimeout(() => { ratingsExportDownload.textContent = 'Datei herunterladen'; }, 1800);
+  });
+
+  // ---- Lokale Bewertungen zurücksetzen ----
+  const ratingsResetBtn = document.getElementById('ratingsResetBtn');
+  ratingsResetBtn.addEventListener('click', () => {
+    const mine = loadMyRatings();
+    const custom = loadRatingCustom();
+    const deleted = loadRatingDeleted();
+    if (!Object.keys(mine).length && !custom.length && !deleted.length) {
+      ratingsResetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
+      setTimeout(() => { ratingsResetBtn.textContent = 'Lokale Bewertungen zurücksetzen'; }, 1800);
+      return;
+    }
+    if (!confirm('Deine eigenen Bewertungen, hinzugefügten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return;
+    localStorage.removeItem(STORAGE_MY_RATINGS);
+    localStorage.removeItem(STORAGE_RATING_CUSTOM);
+    localStorage.removeItem(STORAGE_RATING_DELETED);
+    renderRatingsList(ratingsSearch.value);
+  });
 
 </script>
 

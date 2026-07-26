@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "id": "astra",       "name": "Astra",              "category": "Bier", "ratingSum": 0, "ratingCount": 0 },
+    { "id": "sternburg",   "name": "Sternburg Export",   "category": "Bier", "ratingSum": 0, "ratingCount": 0 },
+    { "id": "flensburger", "name": "Flensburger",        "category": "Bier", "ratingSum": 0, "ratingCount": 0 },
+    { "id": "clubmate",    "name": "Club-Mate",          "category": "Softdrink", "ratingSum": 0, "ratingCount": 0 }
+  ]
+}
