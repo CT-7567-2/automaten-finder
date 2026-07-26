@@ -62,6 +62,50 @@
   }
   .tab-btn.active { color: var(--text); border-bottom-color: var(--amber); }
 
+  .update-banner {
+    position: absolute;
+    top: 44px; left: 0; right: 0;
+    z-index: 35;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--point);
+    color: #0c1230;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 10px 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .update-banner.visible { display: flex; }
+  .update-banner-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .update-banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .update-banner button {
+    background: rgba(12,18,48,0.15);
+    border: none;
+    color: #0c1230;
+    font-size: 12.5px;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .update-banner-top button {
+    font-size: 13px;
+    padding: 3px 9px;
+  }
+  .update-banner button:hover { background: rgba(12,18,48,0.28); }
+  .update-banner button:disabled { opacity: 0.6; cursor: default; }
+
   #mapView {
     position: absolute;
     top: 44px; left: 0; right: 0; bottom: 0;
@@ -1269,6 +1313,14 @@
   <button class="tab-btn" id="tabBtnRatings" data-tab="ratings">★ Bewertungen</button>
 </div>
 
+<div class="update-banner" id="updateBanner">
+  <div class="update-banner-top">
+    <span id="updateBannerText"></span>
+    <button type="button" id="updateBannerClose" aria-label="Schließen">✕</button>
+  </div>
+  <div class="update-banner-actions" id="updateBannerActions"></div>
+</div>
+
 <div id="mapView">
 
 <div id="map"></div>
@@ -1680,6 +1732,80 @@
   // ============================================================
   let seedAutomaten = [];
   let fileIds = new Set();
+
+  // ============================================================
+  // ÄNDERUNGS-ERKENNUNG (Standorte & Bewertungen)
+  // ------------------------------------------------------------
+  // Beim Laden wird ein einfacher Prüfwert des jeweiligen
+  // Datei-Inhalts gebildet und mit dem beim letzten Besuch
+  // gespeicherten verglichen. Weicht er ab, hat sich seit dem
+  // letzten Besuch server-seitig etwas geändert (z.B. jemand hat
+  // automaten.json/ratings.json bei GitHub aktualisiert) — dann
+  // erscheint ein Hinweis-Banner. Kein Server-Zeitstempel nötig,
+  // rein clientseitig über localStorage.
+  // ============================================================
+  function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash * 31 + str.charCodeAt(i)) | 0;
+    }
+    return hash.toString(36);
+  }
+
+  const updateNotices = [];
+  function checkForServerChange(storageKey, rawText, label) {
+    const key = 'automatfinder_hash_' + storageKey;
+    const newHash = simpleHash(rawText);
+    const prevHash = localStorage.getItem(key);
+    // Nur melden, wenn es schon einen gespeicherten Stand vom letzten
+    // Besuch gab (sonst würde der allererste Besuch fälschlich als
+    // "hat sich geändert" gelten).
+    if (prevHash && prevHash !== newHash) {
+      updateNotices.push({ key: storageKey, label });
+    }
+    localStorage.setItem(key, newHash);
+  }
+
+  // Welche Reset-Funktion zu welcher geänderten Datei gehört — wird
+  // erst zur Laufzeit aufgelöst (die Funktionen selbst werden weiter
+  // unten im Script definiert, aber als function-Deklarationen bereits
+  // beim Start gehoisted, daher hier problemlos referenzierbar).
+  const RESET_FN_BY_KEY = {
+    automaten: () => resetLocalLocationChanges(),
+    ratings: () => resetLocalRatingChanges()
+  };
+
+  function showUpdateBanner() {
+    if (!updateNotices.length) return;
+    const banner = document.getElementById('updateBanner');
+    const text = document.getElementById('updateBannerText');
+    const actions = document.getElementById('updateBannerActions');
+    const labels = updateNotices.map(n => n.label);
+    text.textContent = labels.length === 1
+      ? `${labels[0]} wurden seit deinem letzten Besuch aktualisiert.`
+      : `${labels.join(' und ')} wurden seit deinem letzten Besuch aktualisiert.`;
+
+    // Für jede geänderte Datei einen eigenen "… zurücksetzen"-Button,
+    // damit man — falls man weiß, dass man selbst gerade exportiert
+    // hat — direkt aus dem Banner heraus Dopplungen vermeiden kann,
+    // statt erst manuell zum passenden Tab/Menü navigieren zu müssen.
+    actions.innerHTML = '';
+    updateNotices.forEach(notice => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = `${notice.label} zurücksetzen`;
+      btn.addEventListener('click', () => {
+        const fn = RESET_FN_BY_KEY[notice.key];
+        if (fn && fn()) {
+          btn.textContent = 'Erledigt ✓';
+          btn.disabled = true;
+        }
+      });
+      actions.appendChild(btn);
+    });
+
+    banner.classList.add('visible');
+  }
 
   const STORAGE_CUSTOM = 'automatfinder_custom';
   const STORAGE_DELETED = 'automatfinder_deleted';
@@ -2118,7 +2244,9 @@
     try {
       const res = await fetch('./automaten.json', { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      seedAutomaten = await res.json();
+      const rawText = await res.text();
+      checkForServerChange('automaten', rawText, 'Standorte');
+      seedAutomaten = JSON.parse(rawText);
       fileIds = new Set(seedAutomaten.map(a => a.id));
     } catch (err) {
       console.error('automaten.json konnte nicht geladen werden:', err);
@@ -2134,7 +2262,9 @@
     try {
       const ratRes = await fetch('./ratings.json', { cache: 'no-store' });
       if (!ratRes.ok) throw new Error('HTTP ' + ratRes.status);
-      const ratData = await ratRes.json();
+      const ratRawText = await ratRes.text();
+      checkForServerChange('ratings', ratRawText, 'Bewertungen');
+      const ratData = JSON.parse(ratRawText);
       seedRatingItems = Array.isArray(ratData.items) ? ratData.items : [];
       ratingFileIds = new Set(seedRatingItems.map(i => i.id));
     } catch (err) {
@@ -2160,6 +2290,8 @@
         showError('Der Standort aus dem Link wurde nicht gefunden – vermutlich wurde er bereits gelöscht oder ist gerade herausgefiltert.');
       }
     }
+
+    showUpdateBanner();
   }
   init();
 
@@ -3566,22 +3698,28 @@
 
   // ---- "Lokale Änderungen zurücksetzen" ----
   const resetBtn = document.getElementById('resetBtn');
-  resetBtn.addEventListener('click', () => {
+
+  // In eigene Funktion ausgelagert, damit auch der Update-Banner
+  // (bei "Standorte wurden aktualisiert") direkt darauf zugreifen kann.
+  // Gibt true zurück, wenn tatsächlich etwas zurückgesetzt wurde.
+  function resetLocalLocationChanges() {
     const custom = loadCustom();
     const deleted = loadDeleted();
     const edits = loadEdits();
     if (!custom.length && !deleted.length && !Object.keys(edits).length) {
       resetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
       setTimeout(() => { resetBtn.textContent = (CONFIG.texts.resetLabel) || 'Lokale Änderungen zurücksetzen'; }, 1800);
-      return;
+      return false;
     }
-    if (!confirm('Alle lokal hinzugefügten, gelöschten und bearbeiteten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return;
+    if (!confirm('Alle lokal hinzugefügten, gelöschten und bearbeiteten Standorte in diesem Browser entfernen? Der Stand aus automaten.json bleibt unverändert.')) return false;
     localStorage.removeItem(STORAGE_CUSTOM);
     localStorage.removeItem(STORAGE_DELETED);
     localStorage.removeItem(STORAGE_EDITS);
     renderMarkers();
     resultEl.classList.remove('visible');
-  });
+    return true;
+  }
+  resetBtn.addEventListener('click', resetLocalLocationChanges);
 
   // ---- Standortliste (Suche + eigener Filter, unabhängig von der Karte) ----
   const countPill = document.getElementById('countPill');
@@ -4076,6 +4214,10 @@
   tabBtnMap.addEventListener('click', () => setActiveTab('map'));
   tabBtnRatings.addEventListener('click', () => setActiveTab('ratings'));
 
+  document.getElementById('updateBannerClose').addEventListener('click', () => {
+    document.getElementById('updateBanner').classList.remove('visible');
+  });
+
   // ============================================================
   // BEWERTUNGEN (Bier & ähnliche Dinge)
   // ------------------------------------------------------------
@@ -4351,21 +4493,26 @@
 
   // ---- Lokale Bewertungen zurücksetzen ----
   const ratingsResetBtn = document.getElementById('ratingsResetBtn');
-  ratingsResetBtn.addEventListener('click', () => {
+
+  // In eigene Funktion ausgelagert, damit auch der Update-Banner
+  // (bei "Bewertungen wurden aktualisiert") direkt darauf zugreifen kann.
+  function resetLocalRatingChanges() {
     const mine = loadMyRatings();
     const custom = loadRatingCustom();
     const deleted = loadRatingDeleted();
     if (!Object.keys(mine).length && !custom.length && !deleted.length) {
       ratingsResetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
       setTimeout(() => { ratingsResetBtn.textContent = 'Lokale Bewertungen zurücksetzen'; }, 1800);
-      return;
+      return false;
     }
-    if (!confirm('Deine eigenen Bewertungen, hinzugefügten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return;
+    if (!confirm('Deine eigenen Bewertungen, hinzugefügten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return false;
     localStorage.removeItem(STORAGE_MY_RATINGS);
     localStorage.removeItem(STORAGE_RATING_CUSTOM);
     localStorage.removeItem(STORAGE_RATING_DELETED);
     renderRatingsList(ratingsSearch.value);
-  });
+    return true;
+  }
+  ratingsResetBtn.addEventListener('click', resetLocalRatingChanges);
 
 </script>
 
