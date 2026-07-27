@@ -1304,6 +1304,40 @@
     color: var(--text-dim);
     margin-top: 4px;
   }
+  .rating-attr-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .rating-attr-chip {
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .rating-attr-chip.active {
+    border-color: var(--amber);
+    color: var(--text);
+    background: rgba(242,169,0,0.12);
+  }
+  .rating-note-input {
+    width: 100%;
+    background: #14171a;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    margin-top: 10px;
+  }
+  .rating-note-input:focus { outline: none; border-color: var(--amber); }
 </style>
 </head>
 <body>
@@ -1551,6 +1585,7 @@
   //   config.json      - Karten-Standardansicht, Umkreis-Stufen, Texte
   //   automaten.json   - Die eigentlichen Standorte
   //   ratings.json     - Bier & ähnliche Dinge im "Bewertungen"-Tab
+  //   ratings-attributes.json - Ankreuzbare Attribute für Bewertungen
   // ============================================================
 
   // ---- Kategorien (werden aus categories.json geladen) ----
@@ -1581,6 +1616,16 @@
   function productIds() {
     return Object.keys(PRODUCTS);
   }
+
+  // ---- Bier-Attribute (werden aus ratings-attributes.json geladen) ----
+  // Ankreuzbare, geteilte Eigenschaften pro bewertetem Ding (z.B.
+  // "Fruchtig", "Herb"). Neues Attribut hinzufügen/entfernen: einfach
+  // in ratings-attributes.json einen Eintrag ergänzen/löschen.
+  let RATING_ATTRIBUTES = {};
+  function ratingAttributeIds() {
+    return Object.keys(RATING_ATTRIBUTES);
+  }
+
   // Rückgabeformat: { produktId: { price: preis|null, amount: menge|null } }.
   // "amount" ist die Packungsgröße/Stückzahl (z.B. 20 bei einer Schachtel
   // Zigaretten) — wichtig für einen fairen Preisvergleich, da sonst z.B.
@@ -2270,6 +2315,17 @@
     } catch (err) {
       console.warn('ratings.json konnte nicht geladen werden, Bewertungen-Tab bleibt leer:', err);
       seedRatingItems = [];
+    }
+
+    // 4b) Bier-Attribute laden (optional)
+    try {
+      const attrRes = await fetch('./ratings-attributes.json', { cache: 'no-store' });
+      if (!attrRes.ok) throw new Error('HTTP ' + attrRes.status);
+      const attrData = await attrRes.json();
+      RATING_ATTRIBUTES = attrData.attributes || {};
+    } catch (err) {
+      console.warn('ratings-attributes.json konnte nicht geladen werden, Attribute bleiben leer:', err);
+      RATING_ATTRIBUTES = {};
     }
     renderRatingsList('');
 
@@ -4234,6 +4290,7 @@
 
   const STORAGE_RATING_CUSTOM = 'automatfinder_rating_custom';
   const STORAGE_RATING_DELETED = 'automatfinder_rating_deleted';
+  const STORAGE_RATING_EDITS = 'automatfinder_rating_edits';
   const STORAGE_MY_RATINGS = 'automatfinder_my_ratings';
 
   function loadRatingCustom() {
@@ -4246,18 +4303,51 @@
     catch { return []; }
   }
   function saveRatingDeleted(list) { localStorage.setItem(STORAGE_RATING_DELETED, JSON.stringify(list)); }
+  // "edits" = lokale Überschreibung geteilter Felder (Notiz, Attribute)
+  // für Items, die aus ratings.json kommen (dort kann die App ja nicht
+  // direkt schreiben) — exakt dasselbe Prinzip wie bei den Standorten.
+  function loadRatingEdits() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_RATING_EDITS)) || {}; }
+    catch { return {}; }
+  }
+  function saveRatingEdits(obj) { localStorage.setItem(STORAGE_RATING_EDITS, JSON.stringify(obj)); }
   function loadMyRatings() {
     try { return JSON.parse(localStorage.getItem(STORAGE_MY_RATINGS)) || {}; }
     catch { return {}; }
   }
   function saveMyRatings(obj) { localStorage.setItem(STORAGE_MY_RATINGS, JSON.stringify(obj)); }
 
+  // Setzt ein geteiltes Feld (note oder attributes) auf einem Item —
+  // für Datei-Items als lokale Überschreibung, für selbst hinzugefügte
+  // Items direkt im custom-Eintrag.
+  function setRatingField(id, fields) {
+    if (ratingFileIds.has(id)) {
+      const edits = loadRatingEdits();
+      edits[id] = { ...edits[id], ...fields };
+      saveRatingEdits(edits);
+    } else {
+      const custom = loadRatingCustom();
+      const idx = custom.findIndex(it => it.id === id);
+      if (idx !== -1) { custom[idx] = { ...custom[idx], ...fields }; saveRatingCustom(custom); }
+    }
+  }
+
+  function toggleRatingAttribute(id, attrId, currentAttrs) {
+    const set = new Set(currentAttrs);
+    if (set.has(attrId)) set.delete(attrId); else set.add(attrId);
+    setRatingField(id, { attributes: [...set] });
+    renderRatingsList(ratingsSearch.value);
+  }
+
   // Liefert alle sichtbaren Bewertungs-Items inkl. des lokal
   // eingerechneten eigenen Sterne-Werts (falls vorhanden, aber noch
-  // nicht in ratings.json eingeflossen).
+  // nicht in ratings.json eingeflossen) sowie geteilter Notiz/Attribute
+  // inkl. lokaler Überschreibungen.
   function getVisibleRatingItems() {
     const deleted = loadRatingDeleted();
-    const combined = [...seedRatingItems, ...loadRatingCustom()];
+    const edits = loadRatingEdits();
+    const seedWithEdits = seedRatingItems.map(it => edits[it.id] ? { ...it, ...edits[it.id] } : it);
+    const combined = [...seedWithEdits, ...loadRatingCustom()];
     const mine = loadMyRatings();
     return combined
       .filter(it => !deleted.includes(it.id))
@@ -4271,6 +4361,8 @@
           id: it.id,
           name: it.name || '',
           category: it.category || '',
+          note: it.note || '',
+          attributes: Array.isArray(it.attributes) ? it.attributes.filter(a => RATING_ATTRIBUTES[a]) : [],
           myRating: myValue,
           effectiveAvg: effCount ? effSum / effCount : null,
           effectiveCount: effCount,
@@ -4286,7 +4378,12 @@
     const q = query.trim().toLowerCase();
     let items = getVisibleRatingItems();
     if (q) {
-      items = items.filter(it => it.name.toLowerCase().includes(q) || it.category.toLowerCase().includes(q));
+      items = items.filter(it =>
+        it.name.toLowerCase().includes(q) ||
+        it.category.toLowerCase().includes(q) ||
+        it.note.toLowerCase().includes(q) ||
+        it.attributes.some(a => (RATING_ATTRIBUTES[a]?.label || '').toLowerCase().includes(q))
+      );
     }
     // Ranking: höchster Schnitt zuerst; noch unbewertete Dinge ans Ende
     items.sort((a, b) => {
@@ -4333,9 +4430,9 @@
       const avg = document.createElement('div');
       avg.className = 'rating-avg';
       if (it.effectiveAvg != null) {
-        avg.innerHTML = `★ ${it.effectiveAvg.toFixed(1)}<span class="rating-avg-count">${it.effectiveCount} Bewertung${it.effectiveCount === 1 ? '' : 'en'}</span>`;
+        avg.innerHTML = `★ ${it.effectiveAvg.toFixed(1)}<span class="rating-avg-count">${it.effectiveCount}× bewertet</span>`;
       } else {
-        avg.innerHTML = `<span class="rating-avg-count">noch keine</span>`;
+        avg.innerHTML = `<span class="rating-avg-count">noch keine Bewertung</span>`;
       }
 
       const delBtn = document.createElement('button');
@@ -4367,6 +4464,32 @@
         hint.textContent = `Deine Bewertung: ${it.myRating} ★ (nochmal tippen ändert sie)`;
         card.appendChild(hint);
       }
+
+      // Ankreuzbare, geteilte Attribute (aus ratings-attributes.json) —
+      // sofort beim Antippen gespeichert, für alle sichtbar/exportiert.
+      if (ratingAttributeIds().length) {
+        const attrRow = document.createElement('div');
+        attrRow.className = 'rating-attr-row';
+        ratingAttributeIds().forEach(attrId => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'rating-attr-chip' + (it.attributes.includes(attrId) ? ' active' : '');
+          chip.textContent = RATING_ATTRIBUTES[attrId].label;
+          chip.addEventListener('click', () => toggleRatingAttribute(it.id, attrId, it.attributes));
+          attrRow.appendChild(chip);
+        });
+        card.appendChild(attrRow);
+      }
+
+      // Geteilte Notiz (wie bei Standorten: ein gemeinsames Feld,
+      // letzter Export/Eintrag in ratings.json gewinnt).
+      const noteInput = document.createElement('input');
+      noteInput.type = 'text';
+      noteInput.className = 'rating-note-input';
+      noteInput.placeholder = 'Notiz (geteilt, für alle sichtbar) …';
+      noteInput.value = it.note;
+      noteInput.addEventListener('change', () => setRatingField(it.id, { note: noteInput.value.trim() }));
+      card.appendChild(noteInput);
 
       ratingsList.appendChild(card);
     });
@@ -4452,13 +4575,18 @@
   const ratingsExportCopy = document.getElementById('ratingsExportCopy');
 
   ratingsExportBtn.addEventListener('click', () => {
-    const list = getVisibleRatingItems().map(it => ({
-      id: it.id,
-      name: it.name,
-      category: it.category,
-      ratingSum: Math.round((it.baseSum + (it.myRating ? it.myRating : 0)) * 100) / 100,
-      ratingCount: it.baseCount + (it.myRating ? 1 : 0)
-    }));
+    const list = getVisibleRatingItems().map(it => {
+      const entry = {
+        id: it.id,
+        name: it.name,
+        category: it.category,
+        ratingSum: Math.round((it.baseSum + (it.myRating ? it.myRating : 0)) * 100) / 100,
+        ratingCount: it.baseCount + (it.myRating ? 1 : 0)
+      };
+      if (it.note) entry.note = it.note;
+      if (it.attributes.length) entry.attributes = it.attributes;
+      return entry;
+    });
     ratingsExportTextarea.value = JSON.stringify({ items: list }, null, 2);
     ratingsExportOverlay.classList.add('visible');
   });
@@ -4500,15 +4628,17 @@
     const mine = loadMyRatings();
     const custom = loadRatingCustom();
     const deleted = loadRatingDeleted();
-    if (!Object.keys(mine).length && !custom.length && !deleted.length) {
+    const edits = loadRatingEdits();
+    if (!Object.keys(mine).length && !custom.length && !deleted.length && !Object.keys(edits).length) {
       ratingsResetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
       setTimeout(() => { ratingsResetBtn.textContent = 'Lokale Bewertungen zurücksetzen'; }, 1800);
       return false;
     }
-    if (!confirm('Deine eigenen Bewertungen, hinzugefügten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return false;
+    if (!confirm('Deine eigenen Bewertungen, hinzugefügten, bearbeiteten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return false;
     localStorage.removeItem(STORAGE_MY_RATINGS);
     localStorage.removeItem(STORAGE_RATING_CUSTOM);
     localStorage.removeItem(STORAGE_RATING_DELETED);
+    localStorage.removeItem(STORAGE_RATING_EDITS);
     renderRatingsList(ratingsSearch.value);
     return true;
   }

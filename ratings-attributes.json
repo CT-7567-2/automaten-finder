@@ -1,0 +1,12 @@
+{
+  "attributes": {
+    "fruchtig":  { "label": "Fruchtig" },
+    "herb":      { "label": "Herb" },
+    "suess":     { "label": "Süß" },
+    "hopfig":    { "label": "Hopfig" },
+    "leicht":    { "label": "Leicht" },
+    "stark":     { "label": "Stark" },
+    "suffig":    { "label": "Süffig" },
+    "craft":     { "label": "Craft" }
+  }
+}
