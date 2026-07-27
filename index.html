@@ -1306,25 +1306,50 @@
   }
   .rating-attr-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 6px;
     margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--panel-border);
   }
-  .rating-attr-chip {
-    background: transparent;
+  .attr-vote-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .attr-vote-label {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .attr-vote-buttons {
+    display: flex;
     border: 1px solid var(--panel-border);
+    border-radius: 7px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .attr-vote-btn {
+    background: transparent;
+    border: none;
     color: var(--text-dim);
     font-family: 'Inter', sans-serif;
-    font-size: 11.5px;
+    font-size: 10.5px;
     font-weight: 500;
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 5px 8px;
     cursor: pointer;
   }
-  .rating-attr-chip.active {
-    border-color: var(--amber);
-    color: var(--text);
-    background: rgba(242,169,0,0.12);
+  .attr-vote-btn + .attr-vote-btn { border-left: 1px solid var(--panel-border); }
+  .attr-vote-btn.yes.active { background: var(--open-color); color: #0c1f14; }
+  .attr-vote-btn.no.active { background: var(--danger); color: #2a0c0c; }
+  .attr-vote-result {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 34px;
+    flex-shrink: 0;
+    text-align: right;
   }
   .rating-note-input {
     width: 100%;
@@ -1507,7 +1532,16 @@
     </div>
   </div>
 
-  <input type="text" class="modal-input" id="ratingsSearch" placeholder="Suche nach Name oder Kategorie …">
+  <input type="text" class="modal-input" id="ratingsSearch" placeholder="Suche nach Name, Kategorie, Notiz oder Attribut …">
+
+  <div class="product-filter-row" id="ratingsAttrFilterRow"></div>
+  <div class="compare-row" id="ratingsAttrMatchRow" style="display:none;">
+    <span class="match-mode-label">Muss zutreffen:</span>
+    <div class="compare-mode-toggle" id="ratingsAttrMatchToggle">
+      <button type="button" class="compare-mode-btn" data-mode="any">Mind. 1</button>
+      <button type="button" class="compare-mode-btn" data-mode="all">Alle</button>
+    </div>
+  </div>
 
   <button type="button" class="modal-btn cancel" id="ratingsAddBtn" style="margin-bottom:12px;">+ Neues Getränk/Ding hinzufügen</button>
 
@@ -2327,6 +2361,8 @@
       console.warn('ratings-attributes.json konnte nicht geladen werden, Attribute bleiben leer:', err);
       RATING_ATTRIBUTES = {};
     }
+    renderRatingsAttrFilterChips();
+    refreshRatingsAttrMatchRow();
     renderRatingsList('');
 
     // ---- Direktlink zu einem einzelnen Standort (?id=...) ----
@@ -4317,7 +4353,18 @@
   }
   function saveMyRatings(obj) { localStorage.setItem(STORAGE_MY_RATINGS, JSON.stringify(obj)); }
 
-  // Setzt ein geteiltes Feld (note oder attributes) auf einem Item —
+  // Eigene Stimme je Standort+Attribut: 'yes' (trifft zu) oder 'no'
+  // (trifft nicht zu). Genau wie bei den Sternen wird das lokal
+  // gehalten und erst beim Export mit dem Grundwert aus ratings.json
+  // zusammengerechnet — so entstehen "X von Y sagen trifft zu".
+  const STORAGE_MY_ATTR_VOTES = 'automatfinder_my_attr_votes';
+  function loadMyAttrVotes() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_MY_ATTR_VOTES)) || {}; }
+    catch { return {}; }
+  }
+  function saveMyAttrVotes(obj) { localStorage.setItem(STORAGE_MY_ATTR_VOTES, JSON.stringify(obj)); }
+
+  // Setzt ein geteiltes Feld (aktuell nur "note") auf einem Item —
   // für Datei-Items als lokale Überschreibung, für selbst hinzugefügte
   // Items direkt im custom-Eintrag.
   function setRatingField(id, fields) {
@@ -4332,23 +4379,29 @@
     }
   }
 
-  function toggleRatingAttribute(id, attrId, currentAttrs) {
-    const set = new Set(currentAttrs);
-    if (set.has(attrId)) set.delete(attrId); else set.add(attrId);
-    setRatingField(id, { attributes: [...set] });
+  function setAttributeVote(itemId, attrId, value) {
+    const votes = loadMyAttrVotes();
+    if (!votes[itemId]) votes[itemId] = {};
+    // Nochmal dieselbe Option tippen = eigene Stimme zurückziehen
+    votes[itemId][attrId] = votes[itemId][attrId] === value ? null : value;
+    if (!votes[itemId][attrId]) delete votes[itemId][attrId];
+    if (!Object.keys(votes[itemId]).length) delete votes[itemId];
+    saveMyAttrVotes(votes);
     renderRatingsList(ratingsSearch.value);
   }
 
   // Liefert alle sichtbaren Bewertungs-Items inkl. des lokal
-  // eingerechneten eigenen Sterne-Werts (falls vorhanden, aber noch
-  // nicht in ratings.json eingeflossen) sowie geteilter Notiz/Attribute
-  // inkl. lokaler Überschreibungen.
+  // eingerechneten eigenen Sterne-Werts und der eigenen
+  // Attribut-Stimmen (jeweils noch nicht in ratings.json eingeflossen)
+  // sowie der geteilten Notiz inkl. lokaler Überschreibung.
   function getVisibleRatingItems() {
     const deleted = loadRatingDeleted();
     const edits = loadRatingEdits();
     const seedWithEdits = seedRatingItems.map(it => edits[it.id] ? { ...it, ...edits[it.id] } : it);
     const combined = [...seedWithEdits, ...loadRatingCustom()];
     const mine = loadMyRatings();
+    const myVotes = loadMyAttrVotes();
+
     return combined
       .filter(it => !deleted.includes(it.id))
       .map(it => {
@@ -4357,12 +4410,28 @@
         const myValue = mine[it.id] || null;
         const effSum = baseSum + (myValue ? myValue : 0);
         const effCount = baseCount + (myValue ? 1 : 0);
+
+        const baseAttrs = (it.attributes && typeof it.attributes === 'object' && !Array.isArray(it.attributes)) ? it.attributes : {};
+        const myItemVotes = myVotes[it.id] || {};
+        const attributeResults = {};
+        ratingAttributeIds().forEach(attrId => {
+          const base = baseAttrs[attrId] || { yes: 0, total: 0 };
+          const baseYes = Number(base.yes) || 0;
+          const baseTotal = Number(base.total) || 0;
+          const myVote = myItemVotes[attrId] || null; // 'yes' | 'no' | null
+          attributeResults[attrId] = {
+            yes: baseYes + (myVote === 'yes' ? 1 : 0),
+            total: baseTotal + (myVote ? 1 : 0),
+            myVote
+          };
+        });
+
         return {
           id: it.id,
           name: it.name || '',
           category: it.category || '',
           note: it.note || '',
-          attributes: Array.isArray(it.attributes) ? it.attributes.filter(a => RATING_ATTRIBUTES[a]) : [],
+          attributeResults,
           myRating: myValue,
           effectiveAvg: effCount ? effSum / effCount : null,
           effectiveCount: effCount,
@@ -4374,15 +4443,36 @@
   const ratingsList = document.getElementById('ratingsList');
   const ratingsSearch = document.getElementById('ratingsSearch');
 
+  // "Trifft zu" gilt als Mehrheitsverdikt: mehr Ja- als Nein-Stimmen,
+  // und mindestens eine Stimme insgesamt.
+  function attributeApplies(result) {
+    return !!result && result.total > 0 && result.yes * 2 > result.total;
+  }
+
+  let ratingsActiveAttributes = new Set(); // leer = kein Attribut-Filter aktiv
+  let ratingsAttrMatchMode = 'any'; // 'any' = mind. 1 trifft zu, 'all' = alle müssen zutreffen
+
   function renderRatingsList(query) {
     const q = query.trim().toLowerCase();
     let items = getVisibleRatingItems();
+
+    if (ratingsActiveAttributes.size) {
+      items = items.filter(it => {
+        const matchFn = attrId => attributeApplies(it.attributeResults[attrId]);
+        return ratingsAttrMatchMode === 'all'
+          ? [...ratingsActiveAttributes].every(matchFn)
+          : [...ratingsActiveAttributes].some(matchFn);
+      });
+    }
+
     if (q) {
       items = items.filter(it =>
         it.name.toLowerCase().includes(q) ||
         it.category.toLowerCase().includes(q) ||
         it.note.toLowerCase().includes(q) ||
-        it.attributes.some(a => (RATING_ATTRIBUTES[a]?.label || '').toLowerCase().includes(q))
+        Object.entries(it.attributeResults).some(([attrId, res]) =>
+          res.total > 0 && (RATING_ATTRIBUTES[attrId]?.label || '').toLowerCase().includes(q)
+        )
       );
     }
     // Ranking: höchster Schnitt zuerst; noch unbewertete Dinge ans Ende
@@ -4465,18 +4555,43 @@
         card.appendChild(hint);
       }
 
-      // Ankreuzbare, geteilte Attribute (aus ratings-attributes.json) —
-      // sofort beim Antippen gespeichert, für alle sichtbar/exportiert.
+      // Abstimmung "Trifft zu / Trifft nicht zu" pro Attribut, mit
+      // Anzeige "X von Y sagen trifft zu" — geteilt, sofort gespeichert.
       if (ratingAttributeIds().length) {
         const attrRow = document.createElement('div');
         attrRow.className = 'rating-attr-row';
         ratingAttributeIds().forEach(attrId => {
-          const chip = document.createElement('button');
-          chip.type = 'button';
-          chip.className = 'rating-attr-chip' + (it.attributes.includes(attrId) ? ' active' : '');
-          chip.textContent = RATING_ATTRIBUTES[attrId].label;
-          chip.addEventListener('click', () => toggleRatingAttribute(it.id, attrId, it.attributes));
-          attrRow.appendChild(chip);
+          const res = it.attributeResults[attrId];
+          const line = document.createElement('div');
+          line.className = 'attr-vote-row';
+
+          const label = document.createElement('span');
+          label.className = 'attr-vote-label';
+          label.textContent = RATING_ATTRIBUTES[attrId].label;
+
+          const buttons = document.createElement('div');
+          buttons.className = 'attr-vote-buttons';
+          const yesBtn = document.createElement('button');
+          yesBtn.type = 'button';
+          yesBtn.className = 'attr-vote-btn yes' + (res.myVote === 'yes' ? ' active' : '');
+          yesBtn.textContent = 'Trifft zu';
+          yesBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'yes'));
+          const noBtn = document.createElement('button');
+          noBtn.type = 'button';
+          noBtn.className = 'attr-vote-btn no' + (res.myVote === 'no' ? ' active' : '');
+          noBtn.textContent = 'Trifft nicht zu';
+          noBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'no'));
+          buttons.appendChild(yesBtn);
+          buttons.appendChild(noBtn);
+
+          const result = document.createElement('span');
+          result.className = 'attr-vote-result';
+          result.textContent = res.total > 0 ? `${res.yes}/${res.total}` : '–';
+
+          line.appendChild(label);
+          line.appendChild(buttons);
+          line.appendChild(result);
+          attrRow.appendChild(line);
         });
         card.appendChild(attrRow);
       }
@@ -4517,6 +4632,48 @@
   }
 
   ratingsSearch.addEventListener('input', () => renderRatingsList(ratingsSearch.value));
+
+  // ---- Attribut-Filter in den Bewertungen (wie bei den Produkten) ----
+  const ratingsAttrFilterRow = document.getElementById('ratingsAttrFilterRow');
+  const ratingsAttrMatchRow = document.getElementById('ratingsAttrMatchRow');
+  const ratingsAttrMatchToggle = document.getElementById('ratingsAttrMatchToggle');
+
+  function renderRatingsAttrFilterChips() {
+    ratingsAttrFilterRow.innerHTML = '';
+    ratingAttributeIds().forEach(attrId => {
+      const btn = document.createElement('button');
+      btn.className = 'product-filter-chip';
+      btn.dataset.attrId = attrId;
+      btn.textContent = RATING_ATTRIBUTES[attrId].label;
+      btn.addEventListener('click', () => {
+        if (ratingsActiveAttributes.has(attrId)) ratingsActiveAttributes.delete(attrId);
+        else ratingsActiveAttributes.add(attrId);
+        refreshRatingsAttrFilterChips();
+        refreshRatingsAttrMatchRow();
+        renderRatingsList(ratingsSearch.value);
+      });
+      ratingsAttrFilterRow.appendChild(btn);
+    });
+    refreshRatingsAttrFilterChips();
+  }
+  function refreshRatingsAttrFilterChips() {
+    [...ratingsAttrFilterRow.children].forEach(btn => {
+      btn.classList.toggle('active', ratingsActiveAttributes.has(btn.dataset.attrId));
+    });
+  }
+  function refreshRatingsAttrMatchRow() {
+    ratingsAttrMatchRow.style.display = ratingsActiveAttributes.size >= 2 ? 'flex' : 'none';
+    [...ratingsAttrMatchToggle.children].forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === ratingsAttrMatchMode);
+    });
+  }
+  ratingsAttrMatchToggle.addEventListener('click', e => {
+    const btn = e.target.closest('.compare-mode-btn');
+    if (!btn) return;
+    ratingsAttrMatchMode = btn.dataset.mode;
+    refreshRatingsAttrMatchRow();
+    renderRatingsList(ratingsSearch.value);
+  });
 
   // ---- "Mehr Optionen" (Export/Zurücksetzen) einklappbar ----
   const ratingsMoreToggle = document.getElementById('ratingsMoreToggle');
@@ -4584,7 +4741,13 @@
         ratingCount: it.baseCount + (it.myRating ? 1 : 0)
       };
       if (it.note) entry.note = it.note;
-      if (it.attributes.length) entry.attributes = it.attributes;
+      const attrEntries = Object.entries(it.attributeResults).filter(([, res]) => res.total > 0);
+      if (attrEntries.length) {
+        entry.attributes = {};
+        attrEntries.forEach(([attrId, res]) => {
+          entry.attributes[attrId] = { yes: res.yes, total: res.total };
+        });
+      }
       return entry;
     });
     ratingsExportTextarea.value = JSON.stringify({ items: list }, null, 2);
@@ -4629,16 +4792,18 @@
     const custom = loadRatingCustom();
     const deleted = loadRatingDeleted();
     const edits = loadRatingEdits();
-    if (!Object.keys(mine).length && !custom.length && !deleted.length && !Object.keys(edits).length) {
+    const attrVotes = loadMyAttrVotes();
+    if (!Object.keys(mine).length && !custom.length && !deleted.length && !Object.keys(edits).length && !Object.keys(attrVotes).length) {
       ratingsResetBtn.textContent = 'Keine lokalen Änderungen vorhanden';
       setTimeout(() => { ratingsResetBtn.textContent = 'Lokale Bewertungen zurücksetzen'; }, 1800);
       return false;
     }
-    if (!confirm('Deine eigenen Bewertungen, hinzugefügten, bearbeiteten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return false;
+    if (!confirm('Deine eigenen Bewertungen, Attribut-Stimmen, hinzugefügten, bearbeiteten und gelöschten Einträge in diesem Browser zurücksetzen? Der Stand aus ratings.json bleibt unverändert.')) return false;
     localStorage.removeItem(STORAGE_MY_RATINGS);
     localStorage.removeItem(STORAGE_RATING_CUSTOM);
     localStorage.removeItem(STORAGE_RATING_DELETED);
     localStorage.removeItem(STORAGE_RATING_EDITS);
+    localStorage.removeItem(STORAGE_MY_ATTR_VOTES);
     renderRatingsList(ratingsSearch.value);
     return true;
   }
