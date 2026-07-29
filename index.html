@@ -217,6 +217,43 @@
     gap: 8px;
   }
 
+  /* --- Einklappbarer Filter-Bereich (dezenter Pfeil statt Textlink) --- */
+  .filter-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding-bottom: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .filter-section-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+  }
+  .filter-collapse-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px 6px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .filter-collapse-btn.collapsed { transform: rotate(-90deg); }
+  .filter-section-body {
+    overflow: hidden;
+    max-height: 600px;
+    opacity: 1;
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin 0.2s ease;
+  }
+  .filter-section-body.collapsed {
+    max-height: 0;
+    opacity: 0;
+  }
+
   /* --- Generische Filter-/Kategorie-Chips (Karte & Liste) --- */
   .legend-row {
     display: flex;
@@ -1395,9 +1432,15 @@
 </div>
 
 <div class="panel">
-  <div class="legend-row" id="mapFilterRow"></div>
-  <button class="toggle-btn" id="mapOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
-  <button class="toggle-btn" id="mapUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
+  <div class="filter-section-header" id="mapFilterSectionHeader">
+    <span class="filter-section-label">Filter</span>
+    <button type="button" class="filter-collapse-btn" id="mapFilterCollapseBtn" aria-label="Filter ein-/ausblenden">▾</button>
+  </div>
+  <div class="filter-section-body" id="mapFilterBody">
+    <div class="legend-row" id="mapFilterRow"></div>
+    <button class="toggle-btn" id="mapOpenToggle"><span class="dot-indicator"></span><span class="toggle-label">Nur jetzt geöffnete</span></button>
+    <button class="toggle-btn" id="mapUnavailableToggle"><span class="dot-indicator"></span><span class="toggle-label">Nicht verfügbare ausblenden</span></button>
+  </div>
   <div class="mode-row">
     <button class="mode-btn" id="locateBtn">Mein<br>Standort</button>
     <button class="mode-btn secondary" id="pointBtn">Punkt auf<br>Karte wählen</button>
@@ -3186,6 +3229,22 @@
     renderMarkers();
   });
 
+  // ---- Filter-Bereich der Karte ein-/ausklappbar (Zustand gemerkt) ----
+  const mapFilterSectionHeader = document.getElementById('mapFilterSectionHeader');
+  const mapFilterCollapseBtn = document.getElementById('mapFilterCollapseBtn');
+  const mapFilterBody = document.getElementById('mapFilterBody');
+  const STORAGE_MAP_FILTER_COLLAPSED = 'automatfinder_map_filter_collapsed';
+
+  function setMapFilterCollapsed(collapsed) {
+    mapFilterBody.classList.toggle('collapsed', collapsed);
+    mapFilterCollapseBtn.classList.toggle('collapsed', collapsed);
+    localStorage.setItem(STORAGE_MAP_FILTER_COLLAPSED, collapsed ? '1' : '0');
+  }
+  mapFilterSectionHeader.addEventListener('click', () => {
+    setMapFilterCollapsed(!mapFilterBody.classList.contains('collapsed'));
+  });
+  setMapFilterCollapsed(localStorage.getItem(STORAGE_MAP_FILTER_COLLAPSED) === '1');
+
   // ---- "Mehr Optionen" (Export/Import/Zurücksetzen) einklappbar ----
   const moreToggleLink = document.getElementById('moreToggleLink');
   const moreOptions = document.getElementById('moreOptions');
@@ -4451,6 +4510,7 @@
 
   let ratingsActiveAttributes = new Set(); // leer = kein Attribut-Filter aktiv
   let ratingsAttrMatchMode = 'any'; // 'any' = mind. 1 trifft zu, 'all' = alle müssen zutreffen
+  const expandedAttrCards = new Set(); // welche Karten haben die Attribute gerade ausgeklappt
 
   function renderRatingsList(query) {
     const q = query.trim().toLowerCase();
@@ -4557,43 +4617,61 @@
 
       // Abstimmung "Trifft zu / Trifft nicht zu" pro Attribut, mit
       // Anzeige "X von Y sagen trifft zu" — geteilt, sofort gespeichert.
+      // Standardmäßig eingeklappt (sonst wird die Karte bei vielen
+      // Attributen schnell unübersichtlich); der Auf-/Zu-Zustand pro
+      // Karte bleibt über Neu-Renderings (z.B. nach dem Abstimmen)
+      // erhalten, dank expandedAttrCards.
       if (ratingAttributeIds().length) {
-        const attrRow = document.createElement('div');
-        attrRow.className = 'rating-attr-row';
-        ratingAttributeIds().forEach(attrId => {
-          const res = it.attributeResults[attrId];
-          const line = document.createElement('div');
-          line.className = 'attr-vote-row';
-
-          const label = document.createElement('span');
-          label.className = 'attr-vote-label';
-          label.textContent = RATING_ATTRIBUTES[attrId].label;
-
-          const buttons = document.createElement('div');
-          buttons.className = 'attr-vote-buttons';
-          const yesBtn = document.createElement('button');
-          yesBtn.type = 'button';
-          yesBtn.className = 'attr-vote-btn yes' + (res.myVote === 'yes' ? ' active' : '');
-          yesBtn.textContent = 'Trifft zu';
-          yesBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'yes'));
-          const noBtn = document.createElement('button');
-          noBtn.type = 'button';
-          noBtn.className = 'attr-vote-btn no' + (res.myVote === 'no' ? ' active' : '');
-          noBtn.textContent = 'Trifft nicht zu';
-          noBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'no'));
-          buttons.appendChild(yesBtn);
-          buttons.appendChild(noBtn);
-
-          const result = document.createElement('span');
-          result.className = 'attr-vote-result';
-          result.textContent = res.total > 0 ? `${res.yes}/${res.total}` : '–';
-
-          line.appendChild(label);
-          line.appendChild(buttons);
-          line.appendChild(result);
-          attrRow.appendChild(line);
+        const isExpanded = expandedAttrCards.has(it.id);
+        const attrToggle = document.createElement('button');
+        attrToggle.type = 'button';
+        attrToggle.className = 'hours-toggle-link';
+        attrToggle.textContent = isExpanded ? '– Attribute ausblenden' : `+ Attribute anzeigen (${ratingAttributeIds().length})`;
+        attrToggle.addEventListener('click', () => {
+          if (expandedAttrCards.has(it.id)) expandedAttrCards.delete(it.id);
+          else expandedAttrCards.add(it.id);
+          renderRatingsList(ratingsSearch.value);
         });
-        card.appendChild(attrRow);
+        card.appendChild(attrToggle);
+
+        if (isExpanded) {
+          const attrRow = document.createElement('div');
+          attrRow.className = 'rating-attr-row';
+          ratingAttributeIds().forEach(attrId => {
+            const res = it.attributeResults[attrId];
+            const line = document.createElement('div');
+            line.className = 'attr-vote-row';
+
+            const label = document.createElement('span');
+            label.className = 'attr-vote-label';
+            label.textContent = RATING_ATTRIBUTES[attrId].label;
+
+            const buttons = document.createElement('div');
+            buttons.className = 'attr-vote-buttons';
+            const yesBtn = document.createElement('button');
+            yesBtn.type = 'button';
+            yesBtn.className = 'attr-vote-btn yes' + (res.myVote === 'yes' ? ' active' : '');
+            yesBtn.textContent = 'Trifft zu';
+            yesBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'yes'));
+            const noBtn = document.createElement('button');
+            noBtn.type = 'button';
+            noBtn.className = 'attr-vote-btn no' + (res.myVote === 'no' ? ' active' : '');
+            noBtn.textContent = 'Trifft nicht zu';
+            noBtn.addEventListener('click', () => setAttributeVote(it.id, attrId, 'no'));
+            buttons.appendChild(yesBtn);
+            buttons.appendChild(noBtn);
+
+            const result = document.createElement('span');
+            result.className = 'attr-vote-result';
+            result.textContent = res.total > 0 ? `${res.yes}/${res.total}` : '–';
+
+            line.appendChild(label);
+            line.appendChild(buttons);
+            line.appendChild(result);
+            attrRow.appendChild(line);
+          });
+          card.appendChild(attrRow);
+        }
       }
 
       // Geteilte Notiz (wie bei Standorten: ein gemeinsames Feld,
