@@ -111,6 +111,13 @@
     top: 44px; left: 0; right: 0; bottom: 0;
   }
 
+  /* Wenn Bewertungen per config.json deaktiviert sind ("ratingsEnabled":
+     false): Tab-Leiste komplett ausblenden, Karte nimmt den vollen
+     Platz ein — wie vor Einführung der Tabs. */
+  body.tabs-hidden .tab-bar { display: none; }
+  body.tabs-hidden #mapView { top: 0; }
+  body.tabs-hidden .update-banner { top: 0; }
+
   #map {
     position: absolute;
     inset: 0;
@@ -2378,34 +2385,41 @@
     }
     renderMarkers();
 
-    // 4) Bewertungen laden (Bier & ähnliche Dinge) — optional, eigene
-    // Ansicht, bricht bei Fehler nicht die restliche App
-    try {
-      const ratRes = await fetch('./ratings.json', { cache: 'no-store' });
-      if (!ratRes.ok) throw new Error('HTTP ' + ratRes.status);
-      const ratRawText = await ratRes.text();
-      checkForServerChange('ratings', ratRawText, 'Bewertungen');
-      const ratData = JSON.parse(ratRawText);
-      seedRatingItems = Array.isArray(ratData.items) ? ratData.items : [];
-      ratingFileIds = new Set(seedRatingItems.map(i => i.id));
-    } catch (err) {
-      console.warn('ratings.json konnte nicht geladen werden, Bewertungen-Tab bleibt leer:', err);
-      seedRatingItems = [];
-    }
+    // 4) Bewertungen laden (Bier & ähnliche Dinge) — nur wenn nicht per
+    // config.json deaktiviert ("ratingsEnabled": false). In dem Fall
+    // werden ratings.json/ratings-attributes.json gar nicht erst
+    // abgerufen, und der Tab inkl. Tab-Leiste wird komplett ausgeblendet.
+    const ratingsEnabled = CONFIG.ratingsEnabled !== false;
+    if (!ratingsEnabled) {
+      document.body.classList.add('tabs-hidden');
+    } else {
+      try {
+        const ratRes = await fetch('./ratings.json', { cache: 'no-store' });
+        if (!ratRes.ok) throw new Error('HTTP ' + ratRes.status);
+        const ratRawText = await ratRes.text();
+        checkForServerChange('ratings', ratRawText, 'Bewertungen');
+        const ratData = JSON.parse(ratRawText);
+        seedRatingItems = Array.isArray(ratData.items) ? ratData.items : [];
+        ratingFileIds = new Set(seedRatingItems.map(i => i.id));
+      } catch (err) {
+        console.warn('ratings.json konnte nicht geladen werden, Bewertungen-Tab bleibt leer:', err);
+        seedRatingItems = [];
+      }
 
-    // 4b) Bier-Attribute laden (optional)
-    try {
-      const attrRes = await fetch('./ratings-attributes.json', { cache: 'no-store' });
-      if (!attrRes.ok) throw new Error('HTTP ' + attrRes.status);
-      const attrData = await attrRes.json();
-      RATING_ATTRIBUTES = attrData.attributes || {};
-    } catch (err) {
-      console.warn('ratings-attributes.json konnte nicht geladen werden, Attribute bleiben leer:', err);
-      RATING_ATTRIBUTES = {};
+      // 4b) Bier-Attribute laden (optional)
+      try {
+        const attrRes = await fetch('./ratings-attributes.json', { cache: 'no-store' });
+        if (!attrRes.ok) throw new Error('HTTP ' + attrRes.status);
+        const attrData = await attrRes.json();
+        RATING_ATTRIBUTES = attrData.attributes || {};
+      } catch (err) {
+        console.warn('ratings-attributes.json konnte nicht geladen werden, Attribute bleiben leer:', err);
+        RATING_ATTRIBUTES = {};
+      }
+      renderRatingsAttrFilterChips();
+      refreshRatingsAttrMatchRow();
+      renderRatingsList('');
     }
-    renderRatingsAttrFilterChips();
-    refreshRatingsAttrMatchRow();
-    renderRatingsList('');
 
     // ---- Direktlink zu einem einzelnen Standort (?id=...) ----
     // Praktisch zum Teilen, z.B. "Kannst du den hier löschen" –
