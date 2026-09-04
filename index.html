@@ -1805,7 +1805,8 @@
   ];
   let CONFIG = {
     map: { defaultZoom: 14, defaultCenter: { lat: 52.5200, lng: 13.4040 } },
-    texts: {}
+    texts: {},
+    ratingsEnabled: true
   };
 
   // ---- Wochentage für Öffnungszeiten (deutsche Kürzel) ----
@@ -2354,7 +2355,8 @@
       const cfgData = await cfgRes.json();
       CONFIG = {
         map: cfgData.map || CONFIG.map,
-        texts: cfgData.texts || {}
+        texts: cfgData.texts || {},
+        ratingsEnabled: cfgData.ratingsEnabled !== false
       };
       if (Array.isArray(cfgData.radiusOptions) && cfgData.radiusOptions.length) {
         RADIUS_OPTIONS = cfgData.radiusOptions;
