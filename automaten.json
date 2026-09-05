@@ -109,5 +109,21 @@
     "note": "Heineken Emblem",
     "lat": 48.54305,
     "lng": 9.21179
+  },
+  {
+    "id": "d8c3655f-a4e2-4488-b846-deeedfdebb97",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.21369,
+    "lng": 8.99299
+  },
+  {
+    "id": "3acaa365-1849-4a68-b7c6-aa3592a5c3ed",
+    "name": "Automat Ohmenhausen RAH",
+    "type": "automat",
+    "note": "",
+    "lat": 48.47817,
+    "lng": 9.1421
   }
 ]
