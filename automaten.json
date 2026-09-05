@@ -133,5 +133,37 @@
     "note": "",
     "lat": 48.54921,
     "lng": 9.20621
+  },
+  {
+    "id": "6105c009-dc6e-405d-b2ad-e85169eafab3",
+    "name": "Kippoöööö",
+    "type": "automat",
+    "note": "",
+    "lat": 48.50716,
+    "lng": 9.19803
+  },
+  {
+    "id": "d5d0eab5-54f2-484f-b494-26d2fa968368",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.21466,
+    "lng": 8.98653
+  },
+  {
+    "id": "74b961f2-5ed2-4e3a-8d61-fe5c9a06f00d",
+    "name": "Automat",
+    "type": "snack",
+    "note": "",
+    "lat": 48.21701,
+    "lng": 9.02633
+  },
+  {
+    "id": "ec190413-cf37-4755-8470-ea7eef827298",
+    "name": "Automat",
+    "type": "snack",
+    "note": "",
+    "lat": 48.27454,
+    "lng": 9.00001
   }
 ]
