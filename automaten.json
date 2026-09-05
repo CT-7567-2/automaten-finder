@@ -125,5 +125,13 @@
     "note": "",
     "lat": 48.47817,
     "lng": 9.1421
+  },
+  {
+    "id": "a69bf174-2e60-4d41-81f3-e2f2eb051e94",
+    "name": "Kneipe Lamm",
+    "type": "automat",
+    "note": "",
+    "lat": 48.54921,
+    "lng": 9.20621
   }
 ]
