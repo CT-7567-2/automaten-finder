@@ -165,5 +165,93 @@
     "note": "",
     "lat": 48.27454,
     "lng": 9.00001
+  },
+  {
+    "id": "b628a86f-1846-4286-97e8-1bdd15c8431d",
+    "name": "Snackautomat",
+    "type": "snack",
+    "note": "",
+    "lat": 48.50665,
+    "lng": 9.20666
+  },
+  {
+    "id": "d3d7543c-b7c2-4316-af7a-efbdb9768150",
+    "name": "Snackautomat",
+    "type": "snack",
+    "note": "",
+    "lat": 48.5059,
+    "lng": 9.20942
+  },
+  {
+    "id": "15c990df-9411-4b44-9aa8-8ef5a7fa2fa0",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.52686,
+    "lng": 9.20434
+  },
+  {
+    "id": "a9d60797-4a04-48b2-98aa-4d28cc9ba4b6",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.54813,
+    "lng": 9.20593
+  },
+  {
+    "id": "9099892f-0ffe-4776-8e87-e1cf7bc69b68",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.54949,
+    "lng": 9.20474
+  },
+  {
+    "id": "d6f02036-feba-40cc-8db2-e9743892d80f",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.54955,
+    "lng": 9.20203
+  },
+  {
+    "id": "87e4187d-28b0-4cae-bb03-8074a3edc033",
+    "name": "Snackautomat",
+    "type": "snack",
+    "note": "",
+    "lat": 48.56229,
+    "lng": 9.20756
+  },
+  {
+    "id": "1d7e6306-36d9-4ca8-bde2-731d4d236b0e",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.56457,
+    "lng": 9.19657
+  },
+  {
+    "id": "7354f7ef-0426-4654-8c9e-21a58f8870c3",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.5763,
+    "lng": 9.18174
+  },
+  {
+    "id": "e9206d3a-0a6b-4fb4-adab-33f92b2cf307",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.57645,
+    "lng": 9.18186
+  },
+  {
+    "id": "b7b15738-a544-4af0-9657-7fbfcbef146a",
+    "name": "Zigarettenautomat",
+    "type": "automat",
+    "note": "",
+    "lat": 48.57679,
+    "lng": 9.1817
   }
 ]
