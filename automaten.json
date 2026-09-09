@@ -418,8 +418,26 @@
     "id": "c1d78517-c6c9-46fb-acd2-c97bca65e6ac",
     "name": "Verschiedene Automaten",
     "type": "automat,imbiss,snack",
-    "note": "Snacks, Blumen, Zigaretten, Pizza",
+    "note": "",
     "lat": 48.41953,
-    "lng": 9.03857
+    "lng": 9.03857,
+    "products": {
+      "zigaretten": {
+        "price": null,
+        "amount": null
+      },
+      "snacks": {
+        "price": null,
+        "amount": null
+      },
+      "pizza": {
+        "price": null,
+        "amount": null
+      },
+      "blumen": {
+        "price": null,
+        "amount": null
+      }
+    }
   }
 ]
