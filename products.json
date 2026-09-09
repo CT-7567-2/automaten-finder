@@ -10,6 +10,7 @@
     "currywurst":  { "label": "Currywurst",          "amountUnit": "Stk." },
     "pommes":      { "label": "Pommes",              "amountUnit": "Portion" },
     "pizza":       { "label": "Pizza",               "amountUnit": "Stk." },
-    "burger":      { "label": "Burger",              "amountUnit": "Stk." }
+    "burger":      { "label": "Burger",              "amountUnit": "Stk." },
+    "blumen":      { "label": "Blumen",              "amountUnit": "Stk." }
   }
 }
