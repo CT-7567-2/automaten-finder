@@ -641,5 +641,19 @@
         "amount": null
       }
     }
+  },
+  {
+    "id": "5671479b-344e-48f5-93c5-7b060ffd5d25",
+    "name": "Zigarettenautomat",
+    "type": "zigarettenautomat",
+    "note": "",
+    "lat": 48.48733,
+    "lng": 9.10921,
+    "products": {
+      "zigaretten": {
+        "price": null,
+        "amount": null
+      }
+    }
   }
 ]
