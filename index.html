@@ -2666,6 +2666,22 @@
   let pendingCoords = null;
   let pendingTypes = new Set([DEFAULT_CATEGORY]);
   let pendingProducts = {}; // { produktId: preis|null } — Arbeitskopie fürs Hauptformular
+
+  // Liefert die in categories.json hinterlegten Standard-Produkte für
+  // eine Menge ausgewählter Kategorien (z.B. "Automat" → Zigaretten
+  // vorausgewählt). Bei mehreren Kategorien werden alle Defaults
+  // zusammengeführt. Preis/Menge bleiben leer, das Produkt ist nur
+  // schon angehakt — bequemer Startpunkt, jederzeit änderbar.
+  function categoryDefaultProducts(typesSet) {
+    const result = {};
+    [...typesSet].forEach(t => {
+      const cat = CATEGORIES[categoryOf(t)];
+      (cat.defaultProducts || []).forEach(pid => {
+        if (PRODUCTS[pid]) result[pid] = { price: null, amount: null };
+      });
+    });
+    return result;
+  }
   let productRows = {}; // productId -> { checkbox, priceInput }
 
   // ---- Eigenes Popup für Angebot & Preise ----
@@ -2838,6 +2854,14 @@
       pendingTypes.add(type);
     }
     refreshModalTypeChips();
+    // Nur automatisch nachziehen, solange beim Hinzufügen noch keine
+    // eigene Produktauswahl getroffen wurde — sonst würde ein
+    // Kategorie-Wechsel unerwartet schon eingetragene Produkte/Preise
+    // überschreiben.
+    if (modalMode === 'add' && !Object.keys(pendingProducts).length) {
+      pendingProducts = categoryDefaultProducts(pendingTypes);
+      updateProductsSummary();
+    }
   }
 
   // ---- Öffnungszeiten-Editor (Tag-Zeilen) ----
@@ -3079,9 +3103,9 @@
     modalNote.value = '';
     modalUnavailable.checked = false;
     resetHoursEditor();
-    pendingProducts = {};
-    updateProductsSummary();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
+    pendingProducts = categoryDefaultProducts(pendingTypes);
+    updateProductsSummary();
     renderModalTypeChips();
     modalSave.textContent = 'Speichern';
     modalOverlay.classList.add('visible');
