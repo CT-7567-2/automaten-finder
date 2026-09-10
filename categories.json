@@ -1,7 +1,7 @@
 {
   "defaultCategory": "zigarettenautomat",
   "categories": {
-    "snack": {"label": "Snacks", "labelPlural": "Snacks", "color": "#ff0000", "shape": "diamond"  },
+    "snack": {"label": "Snacks", "labelPlural": "Snacks", "color": "#ff0000", "shape": "diamond" ,  "defaultProducts": ["snacks"] },
     "zigarettenautomat": { "label": "Zigaretten-Automat", "labelPlural": "Zigaretten-Automaten", "color": "#f2a900", "shape": "diamond",  "defaultProducts": ["zigaretten"]},
     "automat": { "label": "Automat", "labelPlural": "Automaten", "color": "#f2ee00", "shape": "diamond"  },
     "laden":   { "label": "Laden",   "labelPlural": "Läden",      "color": "#3fc79a", "shape": "circle"  },
