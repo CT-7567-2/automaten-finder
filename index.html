@@ -2666,6 +2666,13 @@
   let pendingCoords = null;
   let pendingTypes = new Set([DEFAULT_CATEGORY]);
   let pendingProducts = {}; // { produktId: preis|null } — Arbeitskopie fürs Hauptformular
+  // true, sobald der Nutzer beim Hinzufügen das Preise-Popup selbst
+  // bestätigt hat — erst dann gilt die Produktauswahl als "eigene
+  // Entscheidung", die ein späterer Kategorie-Wechsel nicht mehr
+  // überschreiben darf. Nur an der Liste selbst festzumachen ("ist sie
+  // leer?") reicht nicht, da sie durch einen Kategorie-Default schon
+  // vorbelegt sein kann, ohne dass der Nutzer etwas angefasst hat.
+  let pendingProductsCustomized = false;
 
   // Liefert die in categories.json hinterlegten Standard-Produkte für
   // eine Menge ausgewählter Kategorien (z.B. "Automat" → Zigaretten
@@ -2805,6 +2812,7 @@
   productsOverlay.addEventListener('click', e => { if (e.target === productsOverlay) productsOverlay.classList.remove('visible'); });
   productsApply.addEventListener('click', () => {
     pendingProducts = readProductRows();
+    pendingProductsCustomized = true;
     updateProductsSummary();
     productsOverlay.classList.remove('visible');
   });
@@ -2854,11 +2862,11 @@
       pendingTypes.add(type);
     }
     refreshModalTypeChips();
-    // Nur automatisch nachziehen, solange beim Hinzufügen noch keine
-    // eigene Produktauswahl getroffen wurde — sonst würde ein
-    // Kategorie-Wechsel unerwartet schon eingetragene Produkte/Preise
-    // überschreiben.
-    if (modalMode === 'add' && !Object.keys(pendingProducts).length) {
+    // Nur automatisch nachziehen, solange der Nutzer die Produktliste
+    // beim Hinzufügen noch nicht selbst bestätigt hat — sonst würde
+    // ein Kategorie-Wechsel unerwartet schon eingetragene
+    // Produkte/Preise überschreiben.
+    if (modalMode === 'add' && !pendingProductsCustomized) {
       pendingProducts = categoryDefaultProducts(pendingTypes);
       updateProductsSummary();
     }
@@ -3105,6 +3113,7 @@
     resetHoursEditor();
     pendingTypes = new Set([DEFAULT_CATEGORY]);
     pendingProducts = categoryDefaultProducts(pendingTypes);
+    pendingProductsCustomized = false;
     updateProductsSummary();
     renderModalTypeChips();
     modalSave.textContent = 'Speichern';
@@ -3118,6 +3127,7 @@
   function openEditModal(loc) {
     modalMode = 'edit';
     editingId = loc.id;
+    pendingProductsCustomized = true;
     modalTitle.textContent = 'Standort bearbeiten';
     pendingCoords = { lat: loc.lat, lng: loc.lng };
     modalCoords.textContent = `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (Position unverändert)`;
