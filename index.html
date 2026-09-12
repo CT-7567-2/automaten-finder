@@ -158,6 +158,31 @@
     border-radius: 2px;
   }
 
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+  }
+  .topbar-icon-btn {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .topbar-icon-btn svg { width: 18px; height: 18px; }
+  .topbar-icon-btn:hover, .topbar-icon-btn.active {
+    border-color: var(--amber);
+    color: var(--text);
+  }
+
   .count-pill {
     pointer-events: auto;
     font-family: 'JetBrains Mono', monospace;
@@ -1247,6 +1272,79 @@
     display: none;
   }
 
+  /* --- Routen-Werkzeug --- */
+  .route-tool-point {
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .route-tool-point-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .route-tool-point-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .route-tool-point-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .route-tool-point-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .route-tool-point-actions .modal-btn { padding: 8px; font-size: 11.5px; }
+  .route-tool-point-actions .modal-btn.active {
+    border-color: var(--point);
+    color: var(--point);
+  }
+
+  .route-tool-result {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    cursor: pointer;
+  }
+  .route-tool-result:hover { border-color: var(--amber); }
+  .route-tool-result.best { border-color: var(--amber); background: rgba(242,169,0,0.08); }
+  .route-tool-result-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+  .route-tool-result-detail {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+  .route-tool-result-detail b { color: var(--open-color); font-weight: 700; }
+
+  #routeToolOverlay.map-mode {
+    background: transparent;
+    pointer-events: none;
+  }
+  #routeToolOverlay.map-mode .modal-box {
+    pointer-events: auto;
+    max-height: 150px;
+    overflow: hidden;
+  }
+
   /* --- Bewertungen-Ansicht --- */
   #ratingsView {
     position: absolute;
@@ -1426,7 +1524,16 @@
 
 <div class="topbar">
   <div class="brand"><span class="brand-mark"></span><span id="brandTitle">AUTOMAT-FINDER</span></div>
-  <button class="count-pill" id="countPill">– Standorte</button>
+  <div class="topbar-right">
+    <button type="button" class="topbar-icon-btn" id="routeToolBtn" aria-label="Route mit Zwischenstopp planen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="6" r="2.5"></circle>
+        <circle cx="18" cy="18" r="2.5"></circle>
+        <path d="M8.2 7.5C10 10 14 14 15.8 16.5"></path>
+      </svg>
+    </button>
+    <button class="count-pill" id="countPill">– Standorte</button>
+  </div>
 </div>
 
 <div class="hint-bar" id="hintBar">
@@ -1565,6 +1672,44 @@
         <button class="modal-btn cancel" id="importCancel2">Abbrechen</button>
         <button class="modal-btn save" id="importApply">Import übernehmen</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="routeToolOverlay">
+  <div class="modal-box">
+    <div class="modal-title">Route mit Zwischenstopp</div>
+    <div class="modal-coords">Start und Ziel wählen — ich zeige dir, welcher Standort mit dem geringsten Umweg auf dem Weg liegt.</div>
+
+    <div class="route-tool-point">
+      <div class="route-tool-point-header">
+        <span class="route-tool-point-label">Start</span>
+        <span class="route-tool-point-value" id="routeToolStartValue">– noch nicht gewählt –</span>
+      </div>
+      <div class="route-tool-point-actions">
+        <button type="button" class="modal-btn cancel" id="routeToolStartMe">Mein Standort</button>
+        <button type="button" class="modal-btn cancel" id="routeToolStartPick">Auf Karte wählen</button>
+      </div>
+    </div>
+
+    <div class="route-tool-point">
+      <div class="route-tool-point-header">
+        <span class="route-tool-point-label">Ziel</span>
+        <span class="route-tool-point-value" id="routeToolEndValue">– noch nicht gewählt –</span>
+      </div>
+      <div class="route-tool-point-actions">
+        <button type="button" class="modal-btn cancel" id="routeToolEndMe">Mein Standort</button>
+        <button type="button" class="modal-btn cancel" id="routeToolEndPick">Auf Karte wählen</button>
+      </div>
+    </div>
+
+    <button type="button" class="modal-btn save" id="routeToolSearchBtn" style="margin-top:4px;" disabled>Standort auf der Route suchen</button>
+
+    <div id="routeToolResults"></div>
+
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="modal-btn cancel" id="routeToolReset">Zurücksetzen</button>
+      <button class="modal-btn cancel" id="routeToolClose">Schließen</button>
     </div>
   </div>
 </div>
@@ -2502,6 +2647,15 @@
   });
 
   map.on('click', e => {
+    if (routeToolPickTarget) {
+      const { lat, lng } = e.latlng;
+      if (routeToolPickTarget === 'start') routeToolStart = { lat, lng };
+      else routeToolEnd = { lat, lng };
+      routeToolPickTarget = null;
+      setRouteToolMapMode(false);
+      updateRouteToolPointLabels();
+      return;
+    }
     if (mode === 'pick-point') {
       const { lat, lng } = e.latlng;
       if (pointMarker) map.removeLayer(pointMarker);
@@ -4934,6 +5088,260 @@
     return true;
   }
   ratingsResetBtn.addEventListener('click', resetLocalRatingChanges);
+
+  // ============================================================
+  // ROUTEN-WERKZEUG (Start + Ziel → Standort mit geringstem Umweg)
+  // ------------------------------------------------------------
+  // Eigenständiges Werkzeug über das Symbol in der Kopfzeile, bewusst
+  // unabhängig vom auf-/zuklappbaren Menü. Ablauf:
+  //   1) Geometrische Vorauswahl: Abstand jedes sichtbaren Standorts
+  //      zur direkten Routenlinie (reine Rechnung, keine weiteren
+  //      Anfragen) — liefert schnell die z.B. 5 vielversprechendsten.
+  //   2) Für nur diese Vorauswahl den echten Umweg per Routing-Dienst
+  //      berechnen (Start→Standort→Ziel vs. direkte Route) und danach
+  //      sortieren. Kombiniert Geschwindigkeit mit echter Genauigkeit,
+  //      ohne den kostenlosen Routing-Dienst zu überlasten.
+  // ============================================================
+  const routeToolBtn = document.getElementById('routeToolBtn');
+  const routeToolOverlay = document.getElementById('routeToolOverlay');
+  const routeToolClose = document.getElementById('routeToolClose');
+  const routeToolReset = document.getElementById('routeToolReset');
+  const routeToolStartValue = document.getElementById('routeToolStartValue');
+  const routeToolEndValue = document.getElementById('routeToolEndValue');
+  const routeToolStartMe = document.getElementById('routeToolStartMe');
+  const routeToolStartPick = document.getElementById('routeToolStartPick');
+  const routeToolEndMe = document.getElementById('routeToolEndMe');
+  const routeToolEndPick = document.getElementById('routeToolEndPick');
+  const routeToolSearchBtn = document.getElementById('routeToolSearchBtn');
+  const routeToolResultsEl = document.getElementById('routeToolResults');
+
+  let routeToolStart = null;
+  let routeToolEnd = null;
+  let routeToolPickTarget = null; // 'start' | 'end' | null
+  let routeToolLayer = null;
+
+  function openRouteTool() {
+    routeToolOverlay.classList.add('visible');
+    updateRouteToolPointLabels();
+  }
+  function closeRouteTool() {
+    setRouteToolMapMode(false);
+    routeToolOverlay.classList.remove('visible');
+  }
+  routeToolBtn.addEventListener('click', openRouteTool);
+  routeToolClose.addEventListener('click', closeRouteTool);
+
+  function setRouteToolMapMode(on) {
+    mapEl.classList.toggle('picking', on);
+    routeToolOverlay.classList.toggle('map-mode', on);
+    if (!on) routeToolPickTarget = null;
+  }
+
+  function formatPointLabel(p) {
+    return p ? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}` : '– noch nicht gewählt –';
+  }
+  function updateRouteToolPointLabels() {
+    routeToolStartValue.textContent = formatPointLabel(routeToolStart);
+    routeToolEndValue.textContent = formatPointLabel(routeToolEnd);
+    routeToolStartPick.classList.toggle('active', routeToolPickTarget === 'start');
+    routeToolEndPick.classList.toggle('active', routeToolPickTarget === 'end');
+    routeToolSearchBtn.disabled = !(routeToolStart && routeToolEnd);
+  }
+
+  routeToolStartMe.addEventListener('click', () => {
+    if (!navigator.geolocation) return;
+    routeToolStartMe.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        routeToolStart = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        routeToolStartMe.disabled = false;
+        updateRouteToolPointLabels();
+      },
+      () => { routeToolStartMe.disabled = false; alert('Standort konnte nicht ermittelt werden.'); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+  routeToolEndMe.addEventListener('click', () => {
+    if (!navigator.geolocation) return;
+    routeToolEndMe.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        routeToolEnd = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        routeToolEndMe.disabled = false;
+        updateRouteToolPointLabels();
+      },
+      () => { routeToolEndMe.disabled = false; alert('Standort konnte nicht ermittelt werden.'); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+  routeToolStartPick.addEventListener('click', () => {
+    routeToolPickTarget = routeToolPickTarget === 'start' ? null : 'start';
+    setRouteToolMapMode(!!routeToolPickTarget);
+    updateRouteToolPointLabels();
+  });
+  routeToolEndPick.addEventListener('click', () => {
+    routeToolPickTarget = routeToolPickTarget === 'end' ? null : 'end';
+    setRouteToolMapMode(!!routeToolPickTarget);
+    updateRouteToolPointLabels();
+  });
+
+  routeToolReset.addEventListener('click', () => {
+    routeToolStart = null;
+    routeToolEnd = null;
+    routeToolResultsEl.innerHTML = '';
+    if (routeToolLayer) { map.removeLayer(routeToolLayer); routeToolLayer = null; }
+    updateRouteToolPointLabels();
+  });
+
+  // ---- Geometrie: kürzester Abstand Punkt→Streckenzug (in Metern) ----
+  // Rechnet lat/lng lokal in Meter um (flache Näherung, für Distanzen
+  // im Stadt-Maßstab ausreichend genau) statt echter Kugelgeometrie —
+  // dafür sofort und ohne weitere Anfragen für beliebig viele Punkte.
+  function toLocalXY(lat, lng, refLat) {
+    const mLat = 111320;
+    const mLng = 111320 * Math.cos(refLat * Math.PI / 180);
+    return { x: lng * mLng, y: lat * mLat };
+  }
+  function distPointToSegment(p, a, b, refLat) {
+    const P = toLocalXY(p.lat, p.lng, refLat);
+    const A = toLocalXY(a.lat, a.lng, refLat);
+    const B = toLocalXY(b.lat, b.lng, refLat);
+    const dx = B.x - A.x, dy = B.y - A.y;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : ((P.x - A.x) * dx + (P.y - A.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = A.x + t * dx, cy = A.y + t * dy;
+    return Math.hypot(P.x - cx, P.y - cy);
+  }
+  function distPointToPolyline(p, coords) {
+    let min = Infinity;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const d = distPointToSegment(p, coords[i], coords[i + 1], p.lat);
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
+  async function fetchRoutePolyline(from, to) {
+    const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/`
+      + `${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const route = data.routes && data.routes[0];
+    if (!route) throw new Error('Keine Route erhalten');
+    return {
+      coords: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
+      distance: route.distance,
+      duration: route.duration
+    };
+  }
+
+  function clearRouteToolLayer() {
+    if (routeToolLayer) { map.removeLayer(routeToolLayer); routeToolLayer = null; }
+  }
+  function drawRouteToolMap(direct) {
+    clearRouteToolLayer();
+    routeToolLayer = L.layerGroup().addTo(map);
+    L.polyline(direct.coords.map(c => [c.lat, c.lng]), { color: '#7c9cff', weight: 4, opacity: 0.75 }).addTo(routeToolLayer);
+    L.marker([routeToolStart.lat, routeToolStart.lng], { icon: makeDivIcon('<div class="point-icon"></div>', [16, 16]) }).addTo(routeToolLayer);
+    L.marker([routeToolEnd.lat, routeToolEnd.lng], { icon: makeDivIcon('<div class="point-icon"></div>', [16, 16]) }).addTo(routeToolLayer);
+    const bounds = L.latLngBounds(direct.coords.map(c => [c.lat, c.lng]));
+    map.fitBounds(bounds, { padding: [70, 70] });
+  }
+
+  function renderRouteToolResults(list) {
+    routeToolResultsEl.innerHTML = '';
+    list.forEach((entry, i) => {
+      const card = document.createElement('div');
+      card.className = 'route-tool-result' + (i === 0 ? ' best' : '');
+
+      const name = document.createElement('div');
+      name.className = 'route-tool-result-name';
+      name.textContent = (i === 0 ? '🏆 ' : '') + entry.loc.name;
+
+      const detail = document.createElement('div');
+      detail.className = 'route-tool-result-detail';
+      const detourM = Math.max(0, Math.round(entry.detourDist));
+      const detourMin = Math.max(0, Math.round(entry.detourDuration / 60));
+      detail.innerHTML = detourMin < 1 && detourM < 50
+        ? 'Liegt praktisch <b>direkt auf der Route</b>'
+        : `Umweg: <b>+${detourMin} Min.</b> (+${detourM} m)`;
+
+      card.appendChild(name);
+      card.appendChild(detail);
+      card.addEventListener('click', () => {
+        closeRouteTool();
+        map.setView([entry.loc.lat, entry.loc.lng], 17);
+        markerRefs[entry.loc.id]?.openPopup();
+      });
+      routeToolResultsEl.appendChild(card);
+    });
+  }
+
+  routeToolSearchBtn.addEventListener('click', async () => {
+    if (!routeToolStart || !routeToolEnd) return;
+    routeToolSearchBtn.disabled = true;
+    routeToolSearchBtn.textContent = 'Route wird berechnet …';
+    routeToolResultsEl.innerHTML = '';
+
+    try {
+      const direct = await fetchRoutePolyline(routeToolStart, routeToolEnd);
+
+      // Kandidaten: dieselben Standorte, die aktuell auf der Karte
+      // sichtbar sind (Kategorie-/Öffnungszeiten-/Verfügbarkeits-Filter
+      // gelten hier genauso).
+      const candidates = getVisibleAutomaten().filter(a =>
+        a.types.some(t => activeTypes.has(t)) &&
+        (!mapOpenOnly || isOpenNow(a)) &&
+        (!mapHideUnavailable || !a.unavailable)
+      );
+
+      if (!candidates.length) {
+        routeToolResultsEl.innerHTML = '<div class="list-empty">Keine passenden Standorte (Filter oben im Menü prüfen).</div>';
+        return;
+      }
+
+      // Schritt 1: geometrische Vorauswahl
+      const shortlist = candidates
+        .map(a => ({ loc: a, geomDist: distPointToPolyline(a, direct.coords) }))
+        .sort((a, b) => a.geomDist - b.geomDist)
+        .slice(0, 5);
+
+      // Schritt 2: echten Umweg für die Vorauswahl berechnen
+      const detailed = [];
+      for (const entry of shortlist) {
+        try {
+          const [leg1, leg2] = await Promise.all([
+            fetchRoutePolyline(routeToolStart, entry.loc),
+            fetchRoutePolyline(entry.loc, routeToolEnd)
+          ]);
+          detailed.push({
+            loc: entry.loc,
+            detourDist: (leg1.distance + leg2.distance) - direct.distance,
+            detourDuration: (leg1.duration + leg2.duration) - direct.duration
+          });
+        } catch (err) {
+          console.warn('Umweg-Berechnung fehlgeschlagen für', entry.loc.name, err);
+        }
+      }
+
+      if (!detailed.length) {
+        routeToolResultsEl.innerHTML = '<div class="list-empty">Route konnte nicht berechnet werden.</div>';
+        return;
+      }
+
+      detailed.sort((a, b) => a.detourDist - b.detourDist);
+      renderRouteToolResults(detailed);
+      drawRouteToolMap(direct);
+    } catch (err) {
+      console.error('Routen-Werkzeug fehlgeschlagen:', err);
+      routeToolResultsEl.innerHTML = '<div class="list-empty">Route konnte nicht berechnet werden (Dienst gerade nicht erreichbar?).</div>';
+    } finally {
+      routeToolSearchBtn.disabled = !(routeToolStart && routeToolEnd);
+      routeToolSearchBtn.textContent = 'Standort auf der Route suchen';
+    }
+  });
 
 </script>
 
