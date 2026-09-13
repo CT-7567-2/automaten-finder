@@ -1318,9 +1318,7 @@
     border-radius: 10px;
     padding: 10px 12px;
     margin-top: 8px;
-    cursor: pointer;
   }
-  .route-tool-result:hover { border-color: var(--amber); }
   .route-tool-result.best { border-color: var(--amber); background: rgba(242,169,0,0.08); }
   .route-tool-result-name {
     font-family: 'Oswald', sans-serif;
@@ -5303,7 +5301,7 @@
 
       card.appendChild(name);
       card.appendChild(detail);
-      card.addEventListener('click', () => {
+
       const actions = document.createElement('div');
       actions.className = 'route-tool-result-actions';
 
@@ -5339,8 +5337,7 @@
       actions.appendChild(showBtn);
       card.appendChild(actions);
       routeToolResultsEl.appendChild(card);
-      });
-      });
+    });
   }
 
   routeToolSearchBtn.addEventListener('click', async () => {
