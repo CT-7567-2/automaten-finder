@@ -1707,6 +1707,14 @@
       </div>
     </div>
 
+    <div class="compare-row" style="margin-top:2px;">
+      <span class="match-mode-label">Fortbewegung:</span>
+      <div class="compare-mode-toggle" id="routeToolProfileToggle">
+        <button type="button" class="compare-mode-btn" data-profile="foot">Zu Fuß</button>
+        <button type="button" class="compare-mode-btn" data-profile="car">Auto</button>
+      </div>
+    </div>
+
     <button type="button" class="modal-btn save" id="routeToolSearchBtn" style="margin-top:4px;" disabled>Standort auf der Route suchen</button>
 
     <div id="routeToolResults"></div>
@@ -5118,10 +5126,25 @@
   const routeToolEndPick = document.getElementById('routeToolEndPick');
   const routeToolSearchBtn = document.getElementById('routeToolSearchBtn');
   const routeToolResultsEl = document.getElementById('routeToolResults');
+  const routeToolProfileToggle = document.getElementById('routeToolProfileToggle');
+
+  function refreshRouteToolProfileToggle() {
+    [...routeToolProfileToggle.children].forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.profile === routeToolProfile);
+    });
+  }
+  routeToolProfileToggle.addEventListener('click', e => {
+    const btn = e.target.closest('.compare-mode-btn');
+    if (!btn) return;
+    routeToolProfile = btn.dataset.profile;
+    refreshRouteToolProfileToggle();
+  });
+  refreshRouteToolProfileToggle();
 
   let routeToolStart = null;
   let routeToolEnd = null;
   let routeToolPickTarget = null; // 'start' | 'end' | null
+  let routeToolProfile = 'foot'; // 'foot' | 'car'
   let routeToolLayer = null;
 
   function openRouteTool() {
@@ -5227,7 +5250,11 @@
   }
 
   async function fetchRoutePolyline(from, to) {
-    const url = `https://routing.openstreetmap.de/routed-foot/route/v1/foot/`
+    // Nutzt dasselbe öffentliche OSRM-Angebot, das auch für die
+    // Fußweg-Route beim "nächsten Automat" genutzt wird — bietet
+    // zusätzlich ein "routed-car"-Profil für Autofahrten an.
+    const profile = routeToolProfile === 'car' ? 'car' : 'foot';
+    const url = `https://routing.openstreetmap.de/routed-${profile}/route/v1/${profile}/`
       + `${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -5289,7 +5316,7 @@
         + `&origin=${routeToolStart.lat},${routeToolStart.lng}`
         + `&destination=${routeToolEnd.lat},${routeToolEnd.lng}`
         + `&waypoints=${entry.loc.lat},${entry.loc.lng}`
-        + `&travelmode=walking`;
+        + `&travelmode=${routeToolProfile === 'car' ? 'driving' : 'walking'}`;
       mapsLink.addEventListener('click', e => e.stopPropagation());
 
       const showBtn = document.createElement('button');
