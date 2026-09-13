@@ -1318,9 +1318,7 @@
     border-radius: 10px;
     padding: 10px 12px;
     margin-top: 8px;
-    cursor: pointer;
   }
-  .route-tool-result:hover { border-color: var(--amber); }
   .route-tool-result.best { border-color: var(--amber); background: rgba(242,169,0,0.08); }
   .route-tool-result-name {
     font-family: 'Oswald', sans-serif;
@@ -1332,6 +1330,12 @@
     font-size: 11.5px;
     color: var(--text-dim);
     margin-top: 3px;
+  }
+  .route-tool-result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 9px;
   }
   .route-tool-result-detail b { color: var(--open-color); font-weight: 700; }
 
@@ -5270,11 +5274,41 @@
 
       card.appendChild(name);
       card.appendChild(detail);
-      card.addEventListener('click', () => {
+
+      const actions = document.createElement('div');
+      actions.className = 'route-tool-result-actions';
+
+      // Route inkl. Zwischenstopp direkt in Google Maps öffnen — dort
+      // gibt's dann waschechte Navigation mit allen drei Punkten.
+      const mapsLink = document.createElement('a');
+      mapsLink.className = 'popup-route-link';
+      mapsLink.target = '_blank';
+      mapsLink.rel = 'noopener';
+      mapsLink.textContent = 'Route mit Zwischenstopp öffnen →';
+      mapsLink.href = `https://www.google.com/maps/dir/?api=1`
+        + `&origin=${routeToolStart.lat},${routeToolStart.lng}`
+        + `&destination=${routeToolEnd.lat},${routeToolEnd.lng}`
+        + `&waypoints=${entry.loc.lat},${entry.loc.lng}`
+        + `&travelmode=walking`;
+      mapsLink.addEventListener('click', e => e.stopPropagation());
+
+      const showBtn = document.createElement('button');
+      showBtn.type = 'button';
+      showBtn.className = 'modal-btn cancel';
+      showBtn.style.flex = '0 0 auto';
+      showBtn.style.padding = '8px 12px';
+      showBtn.style.fontSize = '11.5px';
+      showBtn.textContent = 'Auf Karte zeigen';
+      showBtn.addEventListener('click', e => {
+        e.stopPropagation();
         closeRouteTool();
         map.setView([entry.loc.lat, entry.loc.lng], 17);
         markerRefs[entry.loc.id]?.openPopup();
       });
+
+      actions.appendChild(mapsLink);
+      actions.appendChild(showBtn);
+      card.appendChild(actions);
       routeToolResultsEl.appendChild(card);
     });
   }
