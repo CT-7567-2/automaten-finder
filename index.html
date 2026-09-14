@@ -5128,6 +5128,12 @@
   const routeToolResultsEl = document.getElementById('routeToolResults');
   const routeToolProfileToggle = document.getElementById('routeToolProfileToggle');
 
+  let routeToolStart = null;
+  let routeToolEnd = null;
+  let routeToolPickTarget = null; // 'start' | 'end' | null
+  let routeToolProfile = 'foot'; // 'foot' | 'car'
+  let routeToolLayer = null;
+
   function refreshRouteToolProfileToggle() {
     [...routeToolProfileToggle.children].forEach(btn => {
       btn.classList.toggle('active', btn.dataset.profile === routeToolProfile);
@@ -5140,12 +5146,6 @@
     refreshRouteToolProfileToggle();
   });
   refreshRouteToolProfileToggle();
-
-  let routeToolStart = null;
-  let routeToolEnd = null;
-  let routeToolPickTarget = null; // 'start' | 'end' | null
-  let routeToolProfile = 'foot'; // 'foot' | 'car'
-  let routeToolLayer = null;
 
   function openRouteTool() {
     routeToolOverlay.classList.add('visible');
