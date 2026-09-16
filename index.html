@@ -1685,6 +1685,9 @@
     <div class="modal-title">Route mit Zwischenstopp</div>
     <div class="modal-coords">Start und Ziel wählen — ich zeige dir, welcher Standort mit dem geringsten Umweg auf dem Weg liegt.</div>
 
+    <div class="route-tool-point-label" style="margin-bottom:6px;">Kategorien einbeziehen</div>
+    <div class="legend-row" id="routeToolFilterRow" style="margin-bottom:14px;"></div>
+
     <div class="route-tool-point">
       <div class="route-tool-point-header">
         <span class="route-tool-point-label">Start</span>
@@ -2487,8 +2490,10 @@
     }
     activeTypes = new Set(categoryIds());
     listActiveTypes = new Set(categoryIds());
+    routeToolActiveTypes = new Set(categoryIds());
     renderMapFilterChips();
     renderListFilterChips();
+    renderRouteToolFilterChips();
     renderHoursDayRows();
 
     // 1b) Produkte/Sortiment laden (optional — fehlt die Datei oder ist
@@ -5127,12 +5132,47 @@
   const routeToolSearchBtn = document.getElementById('routeToolSearchBtn');
   const routeToolResultsEl = document.getElementById('routeToolResults');
   const routeToolProfileToggle = document.getElementById('routeToolProfileToggle');
+  const routeToolFilterRow = document.getElementById('routeToolFilterRow');
 
   let routeToolStart = null;
   let routeToolEnd = null;
   let routeToolPickTarget = null; // 'start' | 'end' | null
   let routeToolProfile = 'foot'; // 'foot' | 'car'
   let routeToolLayer = null;
+  let routeToolActiveTypes = new Set(); // eigener Kategorie-Filter, unabhängig von der Karte
+
+  function renderRouteToolFilterChips() {
+    routeToolFilterRow.innerHTML = '';
+    categoryIds().forEach(type => {
+      const cat = CATEGORIES[type];
+      const btn = document.createElement('button');
+      btn.className = 'legend-chip';
+      btn.dataset.categoryType = type;
+      btn.appendChild(buildDot(type));
+      btn.appendChild(document.createTextNode(cat.labelPlural));
+      btn.addEventListener('click', () => {
+        if (routeToolActiveTypes.has(type)) {
+          if (routeToolActiveTypes.size > 1) routeToolActiveTypes.delete(type);
+        } else {
+          routeToolActiveTypes.add(type);
+        }
+        refreshRouteToolFilterChips();
+      });
+      routeToolFilterRow.appendChild(btn);
+    });
+    refreshRouteToolFilterChips();
+  }
+  function refreshRouteToolFilterChips() {
+    [...routeToolFilterRow.children].forEach(btn => {
+      const type = btn.dataset.categoryType;
+      const cat = CATEGORIES[type];
+      const isActive = routeToolActiveTypes.has(type);
+      btn.classList.toggle('active', isActive);
+      btn.style.borderColor = isActive ? cat.color : '';
+      btn.style.color = isActive ? 'var(--text)' : '';
+      btn.style.background = isActive ? cat.color + '15' : 'transparent';
+    });
+  }
 
   function refreshRouteToolProfileToggle() {
     [...routeToolProfileToggle.children].forEach(btn => {
@@ -5349,17 +5389,17 @@
     try {
       const direct = await fetchRoutePolyline(routeToolStart, routeToolEnd);
 
-      // Kandidaten: dieselben Standorte, die aktuell auf der Karte
-      // sichtbar sind (Kategorie-/Öffnungszeiten-/Verfügbarkeits-Filter
-      // gelten hier genauso).
+      // Kandidaten: eigener Kategorie-Filter des Routen-Werkzeugs;
+      // Öffnungszeiten/Verfügbarkeit richten sich weiterhin nach den
+      // Einstellungen im Kartenmenü.
       const candidates = getVisibleAutomaten().filter(a =>
-        a.types.some(t => activeTypes.has(t)) &&
+        a.types.some(t => routeToolActiveTypes.has(t)) &&
         (!mapOpenOnly || isOpenNow(a)) &&
         (!mapHideUnavailable || !a.unavailable)
       );
 
       if (!candidates.length) {
-        routeToolResultsEl.innerHTML = '<div class="list-empty">Keine passenden Standorte (Filter oben im Menü prüfen).</div>';
+        routeToolResultsEl.innerHTML = '<div class="list-empty">Keine passenden Standorte (Kategorien oben prüfen).</div>';
         return;
       }
 
